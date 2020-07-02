@@ -103,6 +103,7 @@ class DeclarationWithRelation internal constructor(val declaration: FirMemberDec
             is FirRegularClass -> declaration.name
             is FirSimpleFunction -> declaration.name
             is FirVariable<*> -> declaration.name
+            is FirScript -> declaration.name
             else -> "<anonymous>"
         }
         return "$relation $name"
