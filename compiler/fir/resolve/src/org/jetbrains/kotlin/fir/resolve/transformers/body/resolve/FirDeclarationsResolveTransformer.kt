@@ -616,13 +616,6 @@ open class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransfor
                 is FirCallableDeclaration<*> -> {
                     prepareCallableForBodyResolve(statement)
                 }
-                is FirClass<*> -> {
-                    statement.declarations.forEach { classDecl ->
-                        if (classDecl is FirCallableDeclaration<*>) {
-                            prepareCallableForBodyResolve(classDecl)
-                        }
-                    }
-                }
             }
         }
 
