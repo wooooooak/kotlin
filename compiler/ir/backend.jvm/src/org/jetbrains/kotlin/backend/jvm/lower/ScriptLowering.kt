@@ -30,13 +30,11 @@ import org.jetbrains.kotlin.ir.symbols.IrClassifierSymbol
 import org.jetbrains.kotlin.ir.symbols.IrScriptSymbol
 import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
 import org.jetbrains.kotlin.ir.symbols.impl.IrScriptSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
-import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.psi.psiUtil.endOffset
-import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 import org.jetbrains.kotlin.psi2ir.PsiSourceManager
 import org.jetbrains.kotlin.resolve.source.KotlinSourceElement
 
@@ -95,50 +93,17 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                         updateFrom(scriptCallParameter)
                         name = scriptCallParameter.name
                     }
-                    irScriptClass.addProperty {
-                        updateFrom(callParameter)
-                        name = callParameter.name
-                    }.also { property ->
-                        property.backingField = buildField {
-                            name = callParameter.name
-                            type = callParameter.type
-                            visibility = Visibilities.PROTECTED
-                        }.also { field ->
-                            field.parent = irScriptClass
-                            field.initializer = IrExpressionBodyImpl(
-                                IrGetValueImpl(
-                                    callParameter.startOffset, callParameter.endOffset,
-                                    callParameter.type,
-                                    callParameter.symbol,
-                                    IrStatementOrigin.INITIALIZE_PROPERTY_FROM_PARAMETER
-                                )
+                    irScriptClass.addSimplePropertyFrom(
+                        callParameter,
+                        IrExpressionBodyImpl(
+                            IrGetValueImpl(
+                                callParameter.startOffset, callParameter.endOffset,
+                                callParameter.type,
+                                callParameter.symbol,
+                                IrStatementOrigin.INITIALIZE_PROPERTY_FROM_PARAMETER
                             )
-
-                            val getter = property.addGetter() {
-                                returnType = callParameter.type
-                            }
-                            getter.dispatchReceiverParameter = irScriptClass.thisReceiver!!.copyTo(getter)
-
-                            getter.body = IrBlockBodyImpl(
-                                UNDEFINED_OFFSET, UNDEFINED_OFFSET, listOf(
-                                    IrReturnImpl(
-                                        callParameter.startOffset, callParameter.endOffset, context.irBuiltIns.nothingType,
-                                        getter.symbol,
-                                        IrGetFieldImpl(
-                                            callParameter.startOffset, callParameter.endOffset,
-                                            field.symbol,
-                                            callParameter.type,
-                                            IrGetValueImpl(
-                                                callParameter.startOffset, callParameter.endOffset,
-                                                getter.dispatchReceiverParameter!!.type,
-                                                getter.dispatchReceiverParameter!!.symbol
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        }
-                    }
+                        )
+                    )
                 }
 
                 irConstructor.body = context.createIrBuilder(irConstructor.symbol).irBlockBody {
@@ -154,13 +119,68 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                 }
             }
             irScript.declarations.forEach {
-                val copy = it.transform(deepCopyTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrDeclaration
-                irScriptClass.declarations.add(copy)
+                if (it is IrVariable) {
+                    if (!it.name.isSpecial) {
+                        irScriptClass.addSimplePropertyFrom(it)
+                    }
+                } else {
+                    val copy = it.transform(deepCopyTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrDeclaration
+                    irScriptClass.declarations.add(copy)
+                }
             }
             irScriptClass.annotations += irFile.annotations
             irScriptClass.metadata = irFile.metadata
         }
     }
+
+    private fun IrClass.addSimplePropertyFrom(
+        from: IrValueDeclaration,
+        initializer: IrExpressionBodyImpl? = null
+    ) {
+        addProperty {
+            updateFrom(from)
+            name = from.name
+        }.also { property ->
+            property.backingField = buildField {
+                name = from.name
+                type = from.type
+                visibility = Visibilities.PROTECTED
+            }.also { field ->
+                field.parent = this
+                if (initializer != null) {
+                    field.initializer = initializer
+                }
+
+                property.addSimpleFieldGetter(from.type, this, field)
+            }
+        }
+    }
+
+    private fun IrProperty.addSimpleFieldGetter(type: IrType, irScriptClass: IrClass, field: IrField) =
+        addGetter() {
+            returnType = type
+        }.apply {
+            dispatchReceiverParameter = irScriptClass.thisReceiver!!.copyTo(this)
+            body = IrBlockBodyImpl(
+                UNDEFINED_OFFSET, UNDEFINED_OFFSET, listOf(
+                    IrReturnImpl(
+                        UNDEFINED_OFFSET, UNDEFINED_OFFSET,
+                        context.irBuiltIns.nothingType,
+                        symbol,
+                        IrGetFieldImpl(
+                            UNDEFINED_OFFSET, UNDEFINED_OFFSET,
+                            field.symbol,
+                            type,
+                            IrGetValueImpl(
+                                UNDEFINED_OFFSET, UNDEFINED_OFFSET,
+                                dispatchReceiverParameter!!.type,
+                                dispatchReceiverParameter!!.symbol
+                            )
+                        )
+                    )
+                )
+            )
+        }
 
     object DECLARATION_ORIGIN_FIELD_FOR_SCRIPT_VARIABLE :
         IrDeclarationOriginImpl("FIELD_FOR_SCRIPT_VARIABL", isSynthetic = true)

@@ -6,13 +6,24 @@
 package org.jetbrains.kotlin.psi2ir.generators
 
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.ir.assertCast
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.impl.IrCompositeImpl
 import org.jetbrains.kotlin.ir.util.varargElementType
+import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
 import org.jetbrains.kotlin.psi.KtScript
 import org.jetbrains.kotlin.psi.KtScriptInitializer
+import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
 import org.jetbrains.kotlin.psi.psiUtil.pureStartOffset
+import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
+import org.jetbrains.kotlin.psi2ir.deparenthesize
+import org.jetbrains.kotlin.psi2ir.intermediate.createTemporaryVariableInBlock
+import org.jetbrains.kotlin.psi2ir.intermediate.setExplicitReceiverValue
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.calls.util.isSingleUnderscore
 
 class ScriptGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
     fun generateScriptDeclaration(ktScript: KtScript): IrDeclaration? {
@@ -45,11 +56,52 @@ class ScriptGenerator(declarationGenerator: DeclarationGenerator) : DeclarationG
             irScript.implicitReceivers = descriptor.implicitReceivers.map(::makeReceiver)
 
             for (d in ktScript.declarations) {
-                if (d is KtScriptInitializer) irScript.statements += BodyGenerator(
-                    irScript.symbol,
-                    context
-                ).generateExpressionBody(d.body!!).expression
-                else irScript.declarations += declarationGenerator.generateMemberDeclaration(d)!!
+                when (d) {
+                    is KtScriptInitializer -> {
+                        irScript.statements += BodyGenerator(
+                            irScript.symbol,
+                            context
+                        ).generateExpressionBody(d.body!!).expression
+                    }
+                    is KtDestructuringDeclaration -> {
+                        // copied with modifications from StatementGenerator.visitDestructuringDeclaration
+                        // TODO: consider code deduplication
+                        val bodyGenerator = BodyGenerator(irScript.symbol, context)
+                        val statementGenerator = bodyGenerator.createStatementGenerator()
+                        val irBlock = IrCompositeImpl(
+                            d.startOffsetSkippingComments, d.endOffset,
+                            context.irBuiltIns.unitType, IrStatementOrigin.DESTRUCTURING_DECLARATION
+                        )
+                        val ktInitializer = d.initializer!!
+                        val initializerExpr = ktInitializer.deparenthesize().accept(statementGenerator, null).assertCast<IrExpression>()
+                        val containerValue =
+                            statementGenerator.scope.createTemporaryVariableInBlock(context, initializerExpr, irBlock, "container")
+
+                        val callGenerator = CallGenerator(statementGenerator)
+                        for ((index, ktEntry) in d.entries.withIndex()) {
+                            val componentResolvedCall = getOrFail(BindingContext.COMPONENT_RESOLVED_CALL, ktEntry)
+
+                            val componentSubstitutedCall = statementGenerator.pregenerateCall(componentResolvedCall)
+                            componentSubstitutedCall.setExplicitReceiverValue(containerValue)
+
+                            val componentVariable = getOrFail(BindingContext.VARIABLE, ktEntry)
+
+                            // componentN for '_' SHOULD NOT be evaluated
+                            if (componentVariable.name.isSpecial || ktEntry.isSingleUnderscore) continue
+
+                            val irComponentCall = callGenerator.generateCall(
+                                ktEntry.startOffsetSkippingComments, ktEntry.endOffset, componentSubstitutedCall,
+                                IrStatementOrigin.COMPONENT_N.withIndex(index + 1)
+                            )
+                            val irComponentVar = context.symbolTable.declareVariable(
+                                ktEntry.startOffsetSkippingComments, ktEntry.endOffset, IrDeclarationOrigin.DEFINED,
+                                componentVariable, componentVariable.type.toIrType(), irComponentCall
+                            )
+                            irScript.declarations.add(irComponentVar)
+                        }
+                    }
+                    else -> irScript.declarations += declarationGenerator.generateMemberDeclaration(d)!!
+                }
             }
 
             descriptor.resultValue?.let { resultDescriptor ->
