@@ -36,22 +36,37 @@ internal class CandidateFactoriesAndCollectors(
 
 typealias EnqueueTasksForInvokeReceiverCandidates = () -> Unit
 
-internal class TowerLevelHandler {
+internal open class TowerLevelHandler(
+    val collector: CandidateCollector,
+    val candidateFactoriesAndCollectors: CandidateFactoriesAndCollectors,
+    val candidateFactory: CandidateFactory
+) {
 
     // Try to avoid adding additional state here
     private var processResult = ProcessorAction.NONE
+
+    open fun onSuccessfulLevel(towerGroup: TowerGroup) {}
+
+    inline fun handleLevel(
+        info: CallInfo,
+        explicitReceiverKind: ExplicitReceiverKind,
+        group: TowerGroup,
+        towerLevel: SessionBasedTowerLevel,
+        onEmptyLevel: (TowerGroup) -> Unit
+    ) {
+        if (handleLevel(info, explicitReceiverKind, group, towerLevel) == ProcessorAction.NONE) {
+            onEmptyLevel(group)
+        }
+        if (collector.isSuccess()) onSuccessfulLevel(group)
+    }
 
     fun handleLevel(
         info: CallInfo,
         explicitReceiverKind: ExplicitReceiverKind,
         group: TowerGroup,
-        candidateFactoriesAndCollectors: CandidateFactoriesAndCollectors,
-        towerLevel: SessionBasedTowerLevel,
-        invokeResolveMode: InvokeResolveMode?,
-        candidateFactory: CandidateFactory,
-        enqueueResolverTasksForInvokeReceiverCandidates: EnqueueTasksForInvokeReceiverCandidates
+        towerLevel: SessionBasedTowerLevel
     ): ProcessorAction {
-        val resultCollector = candidateFactoriesAndCollectors.resultCollector
+        val resultCollector = collector
         val processor =
             TowerScopeLevelProcessor(
                 info.explicitReceiver,
@@ -60,6 +75,7 @@ internal class TowerLevelHandler {
                 candidateFactory,
                 group
             )
+
         when (info.callKind) {
             CallKind.VariableAccess -> {
                 towerLevel.processProperties(info.name, processor)
@@ -69,34 +85,7 @@ internal class TowerLevelHandler {
                 }
             }
             CallKind.Function -> {
-                val invokeBuiltinExtensionMode =
-                    invokeResolveMode == InvokeResolveMode.RECEIVER_FOR_INVOKE_BUILTIN_EXTENSION
-
-                if (!invokeBuiltinExtensionMode) {
-                    towerLevel.processFunctions(info.name, processor)
-                }
-
-                if (invokeResolveMode == InvokeResolveMode.IMPLICIT_CALL_ON_GIVEN_RECEIVER ||
-                    resultCollector.isSuccess()
-                ) {
-                    return processResult
-                }
-
-                val invokeReceiverProcessor = TowerScopeLevelProcessor(
-                    info.explicitReceiver,
-                    explicitReceiverKind,
-                    candidateFactoriesAndCollectors.invokeReceiverCollector!!,
-                    if (invokeBuiltinExtensionMode) candidateFactoriesAndCollectors.invokeBuiltinExtensionReceiverCandidateFactory!!
-                    else candidateFactoriesAndCollectors.invokeReceiverCandidateFactory!!,
-                    group
-                )
-                candidateFactoriesAndCollectors.invokeReceiverCollector.newDataSet()
-                towerLevel.processProperties(info.name, invokeReceiverProcessor)
-                towerLevel.processObjectsAsVariables(info.name, invokeReceiverProcessor)
-
-                if (candidateFactoriesAndCollectors.invokeReceiverCollector.isSuccess()) {
-                    enqueueResolverTasksForInvokeReceiverCandidates()
-                }
+                towerLevel.processFunctions(info.name, processor)
             }
             CallKind.CallableReference -> {
                 val stubReceiver = info.stubReceiver

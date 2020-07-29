@@ -87,6 +87,8 @@ private constructor(
 
     val InvokeExtension get() = kindOf(TowerGroupKind.InvokeExtension)
 
+    fun Weaken() = kindOf(TowerGroupKind.Last)
+
     // Treating `a.foo()` common calls as more prioritized than `a.foo.invoke()`
     // It's not the same as TowerGroupKind because it's not about tower levels, but rather a different dimension semantically.
     // It could be implemented via another TowerGroupKind, but it's not clear what priority should be assigned to the new TowerGroupKind
@@ -130,5 +132,5 @@ private constructor(
 }
 
 enum class InvokeResolvePriority {
-    NONE, COMMON_INVOKE, INVOKE_EXTENSION;
+    NONE, INVOKE_RECEIVER, COMMON_INVOKE, INVOKE_EXTENSION;
 }
