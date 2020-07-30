@@ -89,9 +89,10 @@ class FirTowerResolverSession internal constructor(
             ) {
                 override fun onSuccessfulLevel(towerGroup: TowerGroup) {
                     if (collector.isSuccess()) {
+
                         enqueueResolverTasksForInvokeReceiverCandidates(
                             invokeBuiltinExtensionMode, info,
-                            parentGroupForInvokeCandidates = TowerGroup.EmptyRoot,
+                            parentGroupForInvokeCandidates = if (towerGroup < TowerGroup.Member.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER)) towerGroup else TowerGroup.EmptyRoot,
                             collector
                         )
                         collector.newDataSet()
