@@ -171,10 +171,20 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
     private fun hasVoidReturnType(function: IrFunction): Boolean =
         function is IrConstructor || (function.returnType.isUnit() && !function.isGetter)
 
-    // Copied from KotlinTypeMapper.forceBoxedReturnType.
-    private fun forceBoxedReturnType(function: IrFunction): Boolean = isBoxMethodForInlineClass(function) ||
-            function is IrSimpleFunction && function.returnType.isPrimitiveType() &&
-            function.allOverridden().any { !it.returnType.isPrimitiveType() }
+    // See also: KotlinTypeMapper.forceBoxedReturnType
+    private fun forceBoxedReturnType(function: IrFunction): Boolean =
+        isBoxMethodForInlineClass(function) || forceBoxingOnOverridde(function) || forceBoxingOnDefaultImplFun(function)
+
+    private fun forceBoxingOnOverridde(function: IrFunction) =
+        function is IrSimpleFunction &&
+                function.returnType.isPrimitiveType() &&
+                function.allOverridden().any { !it.returnType.isPrimitiveType() }
+
+    private fun forceBoxingOnDefaultImplFun(function: IrFunction): Boolean {
+        if (function !is IrSimpleFunction) return false
+        val originalFun = context.cachedDeclarations.getOriginalFunctionForDefaultImpl(function) ?: return false
+        return forceBoxingOnOverridde(originalFun)
+    }
 
     private fun isBoxMethodForInlineClass(function: IrFunction): Boolean =
         function.parent.let { it is IrClass && it.isInline } &&
