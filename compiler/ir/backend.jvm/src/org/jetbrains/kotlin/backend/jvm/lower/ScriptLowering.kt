@@ -22,16 +22,17 @@ import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irDelegatingConstructorCall
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrTypeAliasImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrValueParameterImpl
 import org.jetbrains.kotlin.ir.descriptors.WrappedClassDescriptor
-import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.*
-import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
-import org.jetbrains.kotlin.ir.symbols.IrClassifierSymbol
-import org.jetbrains.kotlin.ir.symbols.IrScriptSymbol
+import org.jetbrains.kotlin.ir.symbols.*
 import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
 import org.jetbrains.kotlin.ir.symbols.impl.IrScriptSymbolImpl
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.*
+import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
@@ -74,17 +75,17 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
             irScriptClass.createImplicitParameterDeclarationWithWrappedDescriptor()
             val symbolRemapper = DeepCopySymbolRemapperToScriptClass(irScript.symbol, irScriptClass.symbol)
             val typeRemapper = DeepCopyTypeRemapper(symbolRemapper)
-            val deepCopyTransformer = DeepCopyIrTreeWithSymbols(symbolRemapper, typeRemapper)
+            val scriptTransformer = ScriptToClassTransformer(irScript, irScriptClass, symbolRemapper, typeRemapper)
             irScriptClass.thisReceiver = irScript.thisReceiver.run {
                 acceptVoid(symbolRemapper)
-                transform(deepCopyTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrValueParameter
+                transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrValueParameter
             }
-            irScript.declarations.forEach {
-                it.acceptVoid(symbolRemapper)
-            }
-            irScript.statements.forEach {
-                it.acceptVoid(symbolRemapper)
-            }
+//            irScript.declarations.forEach {
+//                it.acceptVoid(symbolRemapper)
+//            }
+//            irScript.statements.forEach {
+//                it.acceptVoid(symbolRemapper)
+//            }
             irScriptClass.addConstructor {
                 isPrimary = true
             }.also { irConstructor ->
@@ -114,17 +115,15 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                         context.irBuiltIns.unitType
                     )
                     irScript.statements.forEach {
-                        +((it.transform(deepCopyTransformer, null).patchDeclarationParents<IrElement>(irScriptClass)) as IrStatement)
+                        +((it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass)) as IrStatement)
                     }
                 }
             }
             irScript.declarations.forEach {
                 if (it is IrVariable) {
-                    if (!it.name.isSpecial) {
-                        irScriptClass.addSimplePropertyFrom(it)
-                    }
+                    irScriptClass.addSimplePropertyFrom(it)
                 } else {
-                    val copy = it.transform(deepCopyTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrDeclaration
+                    val copy = it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrDeclaration
                     irScriptClass.declarations.add(copy)
                 }
             }
@@ -184,45 +183,796 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
 
     object DECLARATION_ORIGIN_FIELD_FOR_SCRIPT_VARIABLE :
         IrDeclarationOriginImpl("FIELD_FOR_SCRIPT_VARIABL", isSynthetic = true)
+}
 
-    private class DeepCopySymbolRemapperToScriptClass(
-        val scriptSymbol: IrScriptSymbol,
-        val scriptClassSymbol: IrClassSymbol
-    ) : DeepCopySymbolRemapper() {
+private class DeepCopySymbolRemapperToScriptClass(
+    val scriptSymbol: IrScriptSymbol,
+    val scriptClassSymbol: IrClassSymbol
+) : DeepCopySymbolRemapper() {
 
-        override fun getReferencedClassifier(symbol: IrClassifierSymbol): IrClassifierSymbol =
-            super.getReferencedClassifier(
-                if (symbol == scriptSymbol) scriptClassSymbol
-                else symbol
-            )
+    override fun getReferencedClassifier(symbol: IrClassifierSymbol): IrClassifierSymbol =
+        super.getReferencedClassifier(
+            if (symbol == scriptSymbol) scriptClassSymbol
+            else symbol
+        )
 
-        private val scripts = hashMapOf<IrScriptSymbol, IrScriptSymbol>()
+    override fun getReferencedProperty(symbol: IrPropertySymbol): IrPropertySymbol {
+        return super.getReferencedProperty(symbol)
+    }
 
-        override fun visitScript(declaration: IrScript) {
-            remapSymbol(scripts, declaration) {
-                IrScriptSymbolImpl(it.descriptor)
+    override fun getReferencedVariable(symbol: IrVariableSymbol): IrVariableSymbol {
+        return super.getReferencedVariable(symbol)
+    }
+
+    private val scripts = hashMapOf<IrScriptSymbol, IrScriptSymbol>()
+
+    override fun visitScript(declaration: IrScript) {
+        remapSymbol(scripts, declaration) {
+            IrScriptSymbolImpl(it.descriptor)
+        }
+        declaration.acceptChildrenVoid(this)
+    }
+}
+
+fun <T : IrElement> T.patchDeclarationParentsToScriptClass(
+    script: IrScript,
+    scriptClass: IrClass
+) = apply {
+    val visitor = object : IrElementVisitorVoid {
+
+        override fun visitElement(element: IrElement) {
+            element.acceptChildrenVoid(this)
+        }
+
+        override fun visitDeclaration(declaration: IrDeclaration) {
+            if (declaration.parent == script) {
+                declaration.parent = scriptClass
             }
-            declaration.acceptChildrenVoid(this)
+            super.visitDeclaration(declaration)
+        }
+    }
+    acceptVoid(visitor)
+}
+
+private class ScriptToClassTransformer(
+    val irScript: IrScript,
+    val irScriptClass: IrClass,
+    val symbolRemapper: SymbolRemapper = DeepCopySymbolRemapperToScriptClass(irScript.symbol, irScriptClass.symbol),
+    val typeRemapper: TypeRemapper = DeepCopyTypeRemapper(symbolRemapper)
+) : IrElementTransformerVoid() {
+
+    private fun IrType.remapType() = typeRemapper.remapType(this)
+
+    private fun IrDeclaration.transformParent() {
+        if (parent == irScript) {
+            parent = irScriptClass
         }
     }
 
-    fun <T : IrElement> T.patchDeclarationParentsToScriptClass(
-        script: IrScript,
-        scriptClass: IrClass
-    ) = apply {
-        val visitor = object : IrElementVisitorVoid {
+    private fun IrMutableAnnotationContainer.transformAnnotations() {
+        annotations = annotations.transform()
+    }
 
-            override fun visitElement(element: IrElement) {
-                element.acceptChildrenVoid(this)
+    private inline fun <reified T : IrElement> T.transform() =
+        transform(this@ScriptToClassTransformer, null) as T
+
+    private inline fun <reified T : IrElement> List<T>.transform() =
+        map { it.transform() }
+
+    private inline fun <reified T : IrElement> MutableList<T>.replaceTransform() =
+        replaceAll { it.transform() }
+
+    private fun <T : IrDeclarationContainer> T.transformDeclarations() =
+        declarations.transform()
+
+    private fun <T : IrFunction> T.transformFunctionChildren(): T =
+        apply {
+            transformAnnotations()
+            typeRemapper.withinScope(this) {
+                dispatchReceiverParameter = dispatchReceiverParameter?.transform()
+                extensionReceiverParameter = extensionReceiverParameter?.transform()
+                returnType = typeRemapper.remapType(returnType)
+                valueParameters = valueParameters.transform()
+                body = body?.transform()
             }
+        }
 
-            override fun visitDeclaration(declaration: IrDeclaration) {
-                if (declaration.parent == script) {
-                    declaration.parent = scriptClass
+    private fun IrTypeParameter.remapSuperTypes(): IrTypeParameter = apply {
+        superTypes.replaceAll { it.remapType() }
+    }
+
+    private fun IrTypeParametersContainer.transformTypeParameters() {
+        typeRemapper.withinScope(this) {
+            typeParameters = typeParameters.map { it.remapSuperTypes() }
+        }
+    }
+
+    private fun unexpectedElement(element: IrElement): Nothing =
+        throw IllegalArgumentException("Unsupported element type: $element")
+
+    override fun visitElement(element: IrElement): IrElement = unexpectedElement(element)
+    override fun visitDeclaration(declaration: IrDeclaration): IrStatement = unexpectedElement(declaration)
+
+    override fun visitModuleFragment(declaration: IrModuleFragment): IrModuleFragment = unexpectedElement(declaration)
+    override fun visitExternalPackageFragment(declaration: IrExternalPackageFragment): IrExternalPackageFragment = unexpectedElement(declaration)
+    override fun visitFile(declaration: IrFile): IrFile = unexpectedElement(declaration)
+    override fun visitScript(declaration: IrScript): IrStatement = unexpectedElement(declaration)
+//    override fun visitExpression(expression: IrExpression): IrExpression = unexpectedElement(expression)
+
+    override fun visitClass(declaration: IrClass): IrClass = declaration.apply {
+        transformParent()
+        superTypes = superTypes.map {
+            it.remapType()
+        }
+        transformChildren()
+    }
+
+    override fun visitSimpleFunction(declaration: IrSimpleFunction): IrSimpleFunction = declaration.apply {
+        transformParent()
+        transformChildren()
+    }
+
+    override fun visitConstructor(declaration: IrConstructor): IrConstructor = declaration.apply {
+        transformParent()
+        transformFunctionChildren()
+    }
+
+    override fun visitProperty(declaration: IrProperty): IrProperty = declaration.apply {
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitField(declaration: IrField): IrField = declaration.apply {
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitLocalDelegatedProperty(declaration: IrLocalDelegatedProperty): IrLocalDelegatedProperty = declaration.apply {
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitEnumEntry(declaration: IrEnumEntry): IrEnumEntry = declaration.apply {
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitAnonymousInitializer(declaration: IrAnonymousInitializer): IrAnonymousInitializer = declaration.apply {
+        transformParent()
+        transformChildren()
+    }
+
+    override fun visitVariable(declaration: IrVariable): IrVariable = declaration.apply {
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitTypeParameter(declaration: IrTypeParameter): IrTypeParameter = declaration.apply {
+        remapSuperTypes()
+        transformParent()
+        transformAnnotations()
+        transformChildren()
+    }
+
+    override fun visitValueParameter(expression: IrValueParameter): IrValueParameter {
+        val type = expression.type.remapType()
+        val varargElementType = expression.varargElementType?.remapType()
+        val symbol = symbolRemapper.getDeclaredValueParameter(expression.symbol)
+        val remappedExpression =
+            if (type == expression.type && varargElementType == expression.varargElementType && symbol == expression.symbol) {
+                expression
+            } else {
+                IrValueParameterImpl(
+                    expression.startOffset, expression.endOffset,
+                    expression.origin,
+                    symbol,
+                    expression.name,
+                    expression.index,
+                    type,
+                    varargElementType,
+                    expression.isCrossinline,
+                    expression.isNoinline
+                ).apply {
+                    parent = expression.parent
                 }
-                super.visitDeclaration(declaration)
             }
+        return remappedExpression.apply {
+            transformParent()
+            transformAnnotations()
+            transformChildren()
         }
-        acceptVoid(visitor)
     }
+
+    override fun visitTypeAlias(expression: IrTypeAlias): IrTypeAlias {
+        val expandedType = expression.expandedType.remapType()
+        val remappedExpression = if (expandedType == expression.expandedType) {
+            expression
+        } else {
+            IrTypeAliasImpl(
+                expression.startOffset, expression.endOffset,
+                expression.symbol,
+                expression.name,
+                expression.visibility,
+                expandedType,
+                expression.isActual,
+                expression.origin
+            )
+        }
+        return remappedExpression.apply {
+            transformParent()
+            transformAnnotations()
+            transformChildren()
+        }
+    }
+
+    override fun visitVararg(expression: IrVararg): IrVararg {
+        val type = expression.type.remapType()
+        val elementType = expression.varargElementType.remapType()
+        val elements = expression.elements.transform()
+        val remappedExpression =
+            if (type == expression.type && elementType == expression.varargElementType && elements == expression.elements) {
+                expression
+            } else {
+                IrVarargImpl(expression.startOffset, expression.endOffset, type, elementType, elements).copyAttributes(expression)
+            }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitSpreadElement(spread: IrSpreadElement): IrSpreadElement = spread.apply {
+        transformChildren()
+    }
+
+    override fun visitBlock(expression: IrBlock): IrBlock {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression.apply {
+                statements.replaceTransform()
+            }
+        } else {
+            if (expression is IrReturnableBlock)
+                IrReturnableBlockImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.origin,
+                    expression.statements.transform(),
+                    expression.inlineFunctionSymbol
+                ).copyAttributes(expression)
+            else
+                IrBlockImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.origin,
+                    expression.statements.transform()
+                ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitComposite(expression: IrComposite): IrComposite {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression.apply {
+                statements.replaceTransform()
+            }
+        } else {
+            IrCompositeImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.origin,
+                expression.statements.transform()
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitStringConcatenation(expression: IrStringConcatenation): IrStringConcatenation {
+        val type = expression.type.remapType()
+        val arguments = expression.arguments.transform()
+        val remappedExpression = if (type == expression.type && arguments == expression.arguments) {
+            expression
+        } else {
+            IrStringConcatenationImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                arguments
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitGetObjectValue(expression: IrGetObjectValue): IrGetObjectValue {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression
+        } else {
+            IrGetObjectValueImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitGetEnumValue(expression: IrGetEnumValue): IrGetEnumValue {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression
+        } else {
+            IrGetEnumValueImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitGetValue(expression: IrGetValue): IrGetValue {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression
+        } else {
+            IrGetValueImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol,
+                expression.origin
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitSetVariable(expression: IrSetVariable): IrSetVariable {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrSetVariableImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol,
+                expression.value,
+                expression.origin
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitGetField(expression: IrGetField): IrGetField {
+        val type = expression.type.remapType()
+        val superQualifierSymbol = symbolRemapper.getReferencedClassOrNull(expression.superQualifierSymbol)
+        val remappedExpression = if (type == expression.type && superQualifierSymbol == expression.superQualifierSymbol) {
+            expression
+        } else {
+            IrGetFieldImpl(
+                expression.startOffset, expression.endOffset,
+                expression.symbol,
+                type,
+                expression.receiver,
+                expression.origin,
+                superQualifierSymbol
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitSetField(expression: IrSetField): IrSetField {
+        val type = expression.type.remapType()
+        val superQualifierSymbol = symbolRemapper.getReferencedClassOrNull(expression.superQualifierSymbol)
+        val remappedExpression = if (type == expression.type && superQualifierSymbol == expression.superQualifierSymbol) {
+            expression
+        } else {
+            IrSetFieldImpl(
+                expression.startOffset, expression.endOffset,
+                expression.symbol,
+                expression.receiver,
+                expression.value,
+                type,
+                expression.origin,
+                superQualifierSymbol
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitCall(expression: IrCall): IrCall =
+        transformCall(expression).apply {
+            transformValueArguments(expression)
+        }
+
+    override fun visitConstructorCall(expression: IrConstructorCall): IrConstructorCall {
+        val type = expression.type.remapType()
+        val typeRemappedCtor =
+            if (type == expression.type) {
+                expression
+            } else {
+                IrConstructorCallImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.typeArgumentsCount,
+                    expression.constructorTypeArgumentsCount,
+                    expression.valueArgumentsCount,
+                    expression.origin
+                ).copyAttributes(expression)
+            }
+        return typeRemappedCtor.apply {
+            copyRemappedTypeArgumentsFrom(expression)
+            transformValueArguments(expression)
+        }
+    }
+
+    override fun visitDelegatingConstructorCall(expression: IrDelegatingConstructorCall): IrDelegatingConstructorCall {
+        val type = expression.type.remapType()
+        val typeRemappedCtor =
+            if (type == expression.type) {
+                expression
+            } else {
+                IrDelegatingConstructorCallImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.typeArgumentsCount
+                ).copyAttributes(expression)
+            }
+        return typeRemappedCtor.apply {
+            copyRemappedTypeArgumentsFrom(expression)
+            transformValueArguments(expression)
+        }
+    }
+
+    override fun visitEnumConstructorCall(expression: IrEnumConstructorCall): IrEnumConstructorCall {
+        val type = expression.type.remapType()
+        val typeRemappedCtor =
+            if (type == expression.type) {
+                expression
+            } else {
+                IrEnumConstructorCallImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.typeArgumentsCount
+                ).copyAttributes(expression)
+            }
+        return typeRemappedCtor.apply {
+            copyRemappedTypeArgumentsFrom(expression)
+            transformValueArguments(expression)
+        }
+    }
+
+    override fun visitGetClass(expression: IrGetClass): IrGetClass {
+        val type = expression.type.remapType()
+        val argument = expression.argument.transform()
+        return if (type == expression.type && argument == expression.argument) {
+            expression
+        } else {
+            IrGetClassImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                argument
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitFunctionReference(expression: IrFunctionReference): IrFunctionReference {
+        val type = expression.type.remapType()
+        val typeRemappedFuncRef =
+            if (type == expression.type) {
+                expression
+            } else {
+                IrFunctionReferenceImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.typeArgumentsCount,
+                    expression.valueArgumentsCount,
+                    expression.reflectionTarget,
+                    expression.origin
+                ).copyAttributes(expression)
+            }
+        return typeRemappedFuncRef.apply {
+            copyRemappedTypeArgumentsFrom(expression)
+            transformValueArguments(expression)
+        }
+    }
+
+    override fun visitPropertyReference(expression: IrPropertyReference): IrPropertyReference {
+        val type = expression.type.remapType()
+        val typeRemappedFuncRef =
+            if (type == expression.type) {
+                expression
+            } else {
+                IrPropertyReferenceImpl(
+                    expression.startOffset, expression.endOffset,
+                    type,
+                    expression.symbol,
+                    expression.typeArgumentsCount,
+                    expression.field,
+                    expression.getter,
+                    expression.setter,
+                    expression.origin
+                ).copyAttributes(expression)
+            }
+        return typeRemappedFuncRef.apply {
+            copyRemappedTypeArgumentsFrom(expression)
+            transformValueArguments(expression)
+        }
+    }
+
+    override fun visitLocalDelegatedPropertyReference(expression: IrLocalDelegatedPropertyReference): IrLocalDelegatedPropertyReference {
+        val type = expression.type.remapType()
+        return if (type == expression.type) {
+            expression
+        } else {
+            IrLocalDelegatedPropertyReferenceImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol,
+                expression.delegate,
+                expression.getter,
+                expression.setter,
+                expression.origin
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitFunctionExpression(expression: IrFunctionExpression): IrFunctionExpression {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrFunctionExpressionImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.function,
+                expression.origin
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitClassReference(expression: IrClassReference): IrClassReference {
+        val type = expression.type.remapType()
+        val classType = expression.classType.remapType()
+        val symbol = symbolRemapper.getReferencedClassifier(expression.symbol)
+        return if (type == expression.type && classType == expression.classType && symbol == expression.symbol) {
+            expression
+        } else {
+            IrClassReferenceImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                symbol,
+                classType
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitInstanceInitializerCall(expression: IrInstanceInitializerCall): IrInstanceInitializerCall {
+        val type = expression.type.remapType()
+        val classSymbol = symbolRemapper.getReferencedClass(expression.classSymbol)
+        return if (type == expression.type && classSymbol == expression.classSymbol) {
+            expression
+        } else {
+            IrInstanceInitializerCallImpl(
+                expression.startOffset, expression.endOffset,
+                classSymbol,
+                type
+            ).copyAttributes(expression)
+        }
+    }
+
+    override fun visitTypeOperator(expression: IrTypeOperatorCall): IrTypeOperatorCall {
+        val type = expression.type.remapType()
+        val typeOperand = expression.typeOperand.remapType()
+        val remappedExpression = if (type == expression.type && typeOperand == expression.typeOperand) {
+            expression
+        } else {
+            IrTypeOperatorCallImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.operator,
+                typeOperand,
+                expression.argument
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitWhen(expression: IrWhen): IrWhen {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrWhenImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.origin,
+                expression.branches
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitBreak(expression: IrBreak): IrBreak {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrBreakImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.loop
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitContinue(expression: IrContinue): IrContinue {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrContinueImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.loop
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitTry(expression: IrTry): IrTry {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrTryImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.tryResult,
+                expression.catches,
+                expression.finallyExpression
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitReturn(expression: IrReturn): IrReturn {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrReturnImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.returnTargetSymbol,
+                expression.value
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitThrow(expression: IrThrow): IrThrow {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrThrowImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.value
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitDynamicOperatorExpression(expression: IrDynamicOperatorExpression): IrDynamicOperatorExpression {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrDynamicOperatorExpressionImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.operator
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    override fun visitDynamicMemberExpression(expression: IrDynamicMemberExpression): IrDynamicMemberExpression {
+        val type = expression.type.remapType()
+        val remappedExpression = if (type == expression.type) {
+            expression
+        } else {
+            IrDynamicMemberExpressionImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.memberName,
+                expression.receiver
+            ).copyAttributes(expression)
+        }
+        return remappedExpression.apply {
+            transformChildren()
+        }
+    }
+
+    private fun SymbolRemapper.getReferencedReturnTarget(returnTarget: IrReturnTargetSymbol) =
+        when (returnTarget) {
+            is IrFunctionSymbol -> getReferencedFunction(returnTarget)
+            is IrReturnableBlockSymbol -> getReferencedReturnableBlock(returnTarget)
+            else -> throw AssertionError("Unexpected return target: ${returnTarget.javaClass} $returnTarget")
+        }
+
+    private fun transformCall(expression: IrCall): IrCall {
+        val type = expression.type.remapType()
+        val superQualifierSymbol = symbolRemapper.getReferencedClassOrNull(expression.superQualifierSymbol)
+        val remappedExpression = if (type == expression.type && superQualifierSymbol == expression.superQualifierSymbol) {
+            expression
+        } else {
+            IrCallImpl(
+                expression.startOffset, expression.endOffset,
+                type,
+                expression.symbol,
+                expression.typeArgumentsCount,
+                expression.valueArgumentsCount,
+                expression.origin,
+                superQualifierSymbol
+            ).copyAttributes(expression)
+        }
+        remappedExpression.copyRemappedTypeArgumentsFrom(expression)
+        return remappedExpression
+    }
+
+    private fun IrMemberAccessExpression<*>.copyRemappedTypeArgumentsFrom(other: IrMemberAccessExpression<*>) {
+        assert(typeArgumentsCount == other.typeArgumentsCount) {
+            "Mismatching type arguments: $typeArgumentsCount vs ${other.typeArgumentsCount} "
+        }
+        for (i in 0 until typeArgumentsCount) {
+            putTypeArgument(i, other.getTypeArgument(i)?.remapType())
+        }
+    }
+
+    private fun <T : IrMemberAccessExpression<*>> T.transformValueArguments(original: T) {
+        transformReceiverArguments(original)
+        for (i in 0 until original.valueArgumentsCount) {
+            putValueArgument(i, original.getValueArgument(i)?.transform())
+        }
+    }
+
+    private fun <T : IrMemberAccessExpression<*>> T.transformReceiverArguments(original: T): T =
+        apply {
+            dispatchReceiver = original.dispatchReceiver?.transform()
+            extensionReceiver = original.extensionReceiver?.transform()
+        }
 }

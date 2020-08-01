@@ -99,6 +99,7 @@ class ScriptGenerator(declarationGenerator: DeclarationGenerator) : DeclarationG
                             )
                             irScript.declarations.add(irComponentVar)
                         }
+                        irScript.statements += irBlock
                     }
                     else -> irScript.declarations += declarationGenerator.generateMemberDeclaration(d)!!
                 }
