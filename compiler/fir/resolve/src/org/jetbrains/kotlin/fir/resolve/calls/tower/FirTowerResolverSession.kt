@@ -252,7 +252,7 @@ class FirTowerResolverSession internal constructor(
         if (invokeBuiltinExtensionMode) {
             manager.enqueueResolverTask {
                 task.runResolverForBuiltinInvokeExtensionWithExplicitArgument(
-                    invokeFunctionInfo, explicitReceiver, invokeOnGivenReceiverCandidateFactory,
+                    invokeFunctionInfo, explicitReceiver,
                     parentGroupForInvokeCandidates
                 )
             }
@@ -260,7 +260,7 @@ class FirTowerResolverSession internal constructor(
             if (useImplicitReceiverAsBuiltinInvokeArgument) {
                 manager.enqueueResolverTask {
                     task.runResolverForBuiltinInvokeExtensionWithImplicitArgument(
-                        invokeFunctionInfo, explicitReceiver, invokeOnGivenReceiverCandidateFactory,
+                        invokeFunctionInfo, explicitReceiver,
                         parentGroupForInvokeCandidates
                     )
                 }
@@ -283,16 +283,10 @@ class FirTowerResolverSession internal constructor(
             callInfo: CallInfo,
             group: TowerGroup,
             explicitReceiverKind: ExplicitReceiverKind = ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-//            invokeResolveMode: InvokeResolveMode? = null,
-//        candidateFactory: CandidateFactory = candidateFactoriesAndCollectors.candidateFactory,
-            // Non-trivial only for qualifier receiver, because there we should prioritize invokes that were found
-            // at Qualifier scopes above candidates found in QualifierAsExpression receiver
-//            useParentGroupForInvokes: Boolean = false,
             onEmptyLevel: (TowerGroup) -> Unit = {}
         ) {
             val rGroup = if (invokeReceiver) group.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER) else group
             manager.requestGroup(rGroup)
-
 
 
             handler.handleLevel(
@@ -302,32 +296,8 @@ class FirTowerResolverSession internal constructor(
                 towerLevel,
                 onEmptyLevel
             )
-//        levelHandler.handleLevel(
-//            callInfo, explicitReceiverKind, group,
-//            candidateFactoriesAndCollectors, towerLevel, invokeResolveMode, candidateFactory
-//        ) {
-//            enqueueResolverTasksForInvokeReceiverCandidates(
-//                invokeResolveMode, callInfo,
-//                parentGroupForInvokeCandidates = if (useParentGroupForInvokes) group else TowerGroup.EmptyRoot
-//            )
-//        }
         }
 
-        private suspend fun processLevelForPropertyWithInvokeExtension(
-            towerLevel: SessionBasedTowerLevel,
-            callInfo: CallInfo,
-            group: TowerGroup
-        ) {
-//            if (callInfo.callKind == CallKind.Function) {
-//                processLevel(
-//                    towerLevel,
-//                    callInfo,
-//                    group,
-//                    ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-////                    InvokeResolveMode.RECEIVER_FOR_INVOKE_BUILTIN_EXTENSION
-//                )
-//            }
-        }
 
         private fun FirScope.toScopeTowerLevel(
             extensionReceiver: ReceiverValue? = null,
@@ -607,9 +577,6 @@ class FirTowerResolverSession internal constructor(
                 info, towerGroup, ExplicitReceiverKind.EXTENSION_RECEIVER
             )
 
-            processLevelForPropertyWithInvokeExtension(
-                scope.toScopeTowerLevel(), info, towerGroup
-            )
         }
 
         private suspend fun processCombinationOfReceivers(
@@ -622,25 +589,6 @@ class FirTowerResolverSession internal constructor(
             processLevel(
                 implicitReceiverValue.toMemberScopeTowerLevel(extensionReceiver = explicitReceiverValue),
                 info, parentGroup.Member, ExplicitReceiverKind.EXTENSION_RECEIVER
-            )
-            // properties for invoke on implicit receiver
-            processLevelForPropertyWithInvokeExtension(
-                implicitReceiverValue.toMemberScopeTowerLevel(), info, parentGroup.Member
-            )
-
-            enumerateTowerLevels(
-                onScope = { scope, group ->
-                    processLevelForPropertyWithInvokeExtension(
-                        scope.toScopeTowerLevel(extensionReceiver = implicitReceiverValue),
-                        info, group
-                    )
-                },
-                onImplicitReceiver = { receiver, group ->
-                    processLevelForPropertyWithInvokeExtension(
-                        receiver.toMemberScopeTowerLevel(extensionReceiver = implicitReceiverValue),
-                        info, group
-                    )
-                }
             )
         }
 
@@ -706,7 +654,6 @@ class FirTowerResolverSession internal constructor(
         internal suspend fun runResolverForBuiltinInvokeExtensionWithExplicitArgument(
             info: CallInfo,
             invokeReceiverValue: ExpressionReceiverValue,
-            invokeOnGivenReceiverCandidateFactory: CandidateFactory,
             parentGroupForInvokeCandidates: TowerGroup
         ) {
             processLevel(
@@ -721,7 +668,6 @@ class FirTowerResolverSession internal constructor(
         internal suspend fun runResolverForBuiltinInvokeExtensionWithImplicitArgument(
             info: CallInfo,
             invokeReceiverValue: ExpressionReceiverValue,
-            invokeOnGivenReceiverCandidateFactory: CandidateFactory,
             parentGroupForInvokeCandidates: TowerGroup
         ) {
             for ((implicitReceiverValue, depth) in implicitReceivers) {
