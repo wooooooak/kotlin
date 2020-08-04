@@ -62,11 +62,11 @@ abstract class IrBindableSymbolBase<out D : DeclarationDescriptor, B : IrSymbolO
         get() = _owner ?: throw IllegalStateException("Symbol with ${javaClass.simpleName} is unbound")
 
     override fun bind(owner: B) {
-        if (_owner == null) {
+//        if (_owner == null) {
             _owner = owner
-        } else {
-            throw IllegalStateException("${javaClass.simpleName} is already bound: ${owner.render()}")
-        }
+//        } else {
+//            throw IllegalStateException("${javaClass.simpleName} is already bound: ${owner.render()}")
+//        }
     }
 
     override val isPublicApi: Boolean = false
