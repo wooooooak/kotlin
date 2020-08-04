@@ -56,24 +56,43 @@ object VariableAssignmentChecker : AbstractFirPropertyInitializationChecker() {
 
             if (lastDestructuringSource != null) {
                 // if this is the last variable in destructuring declaration and destructuringCanBeVal == true and it can be val
-                if (lastDestructuredVariables == 1 && destructuringCanBeVal && canBeVal(symbol, value)) {
+                if (
+                    lastDestructuredVariables == 1
+                    && destructuringCanBeVal
+                    && symbol.canBeVal(value)
+                    && symbol.fir.delegate == null
+                ) {
                     reporter.report(lastDestructuringSource, FirErrors.CAN_BE_VAL)
                     lastDestructuringSource = null
-                } else if (!canBeVal(symbol, value)) {
+                } else if (!symbol.canBeVal(value)) {
                     destructuringCanBeVal = false
                 }
                 lastDestructuredVariables--
-            } else if (canBeVal(symbol, value) && symbol.fir.delegate == null ) {
-                reporter.report(source, FirErrors.CAN_BE_VAL)
+            } else {
+                when (value) {
+                    EventOccurrencesRange.AT_MOST_ONCE -> {
+                        reporter.report(source, FirErrors.UNUSED_VAR_OR_VAL)
+                    }
+                    EventOccurrencesRange.EXACTLY_ONCE -> {
+                        if (symbol.fir.isVar && symbol.fir.delegate == null) {
+                            reporter.report(source, FirErrors.CAN_BE_VAL)
+                        }
+                    }
+                    EventOccurrencesRange.ZERO -> {
+                        reporter.report(source, FirErrors.UNUSED_VAR_OR_VAL)
+                    }
+                    else -> {
+                    }
+                }
             }
         }
     }
 
-    private fun canBeVal(symbol: FirPropertySymbol, value: EventOccurrencesRange) =
+    private fun FirPropertySymbol.canBeVal(value: EventOccurrencesRange) =
         (value == EventOccurrencesRange.EXACTLY_ONCE
                 || value == EventOccurrencesRange.AT_MOST_ONCE
                 || value == EventOccurrencesRange.ZERO
-                ) && symbol.fir.isVar
+                ) && fir.isVar
 
     private class UninitializedPropertyReporter(
         val data: Map<CFGNode<*>, PropertyInitializationInfo>,
@@ -83,16 +102,6 @@ object VariableAssignmentChecker : AbstractFirPropertyInitializationChecker() {
     ) : ControlFlowGraphVisitorVoid() {
         override fun visitNode(node: CFGNode<*>) {}
 
-        override fun visitVariableAssignmentNode(node: VariableAssignmentNode) {
-            val symbol = (node.fir.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirPropertySymbol
-                ?: return
-            if (symbol !in localProperties) return
-            unprocessedProperties.remove(symbol)
-
-            val currentCharacteristic = propertiesCharacteristics.getOrDefault(symbol, EventOccurrencesRange.ZERO)
-            propertiesCharacteristics[symbol] = currentCharacteristic.or(data.getValue(node)[symbol] ?: EventOccurrencesRange.ZERO)
-        }
-
         override fun visitVariableDeclarationNode(node: VariableDeclarationNode) {
             val symbol = node.fir.symbol
             if (node.fir.initializer == null && node.fir.delegate == null) {
@@ -100,6 +109,32 @@ object VariableAssignmentChecker : AbstractFirPropertyInitializationChecker() {
             } else {
                 propertiesCharacteristics[symbol] = EventOccurrencesRange.AT_MOST_ONCE
             }
+        }
+
+        override fun visitVariableAssignmentNode(node: VariableAssignmentNode) {
+            addOneUsage(node)
+        }
+
+        override fun visitQualifiedAccessNode(node: QualifiedAccessNode) {
+            addOneUsage(node)
+        }
+
+        private fun addOneUsage(node: CFGNode<*>) {
+            val symbol = when (node) {
+                is VariableAssignmentNode -> {
+                    (node.fir.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirPropertySymbol ?: return
+                }
+                is QualifiedAccessNode -> {
+                    (node.fir.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirPropertySymbol ?: return
+                }
+                else -> return
+            }
+
+            if (symbol !in localProperties) return
+            unprocessedProperties.remove(symbol)
+
+            val currentCharacteristic = propertiesCharacteristics.getOrDefault(symbol, EventOccurrencesRange.ZERO)
+            propertiesCharacteristics[symbol] = currentCharacteristic + EventOccurrencesRange.AT_MOST_ONCE
         }
     }
 
