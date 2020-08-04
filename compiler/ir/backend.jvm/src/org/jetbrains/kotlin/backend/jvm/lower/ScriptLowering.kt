@@ -24,13 +24,16 @@ import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
 import org.jetbrains.kotlin.ir.declarations.impl.IrTypeAliasImpl
 import org.jetbrains.kotlin.ir.declarations.impl.IrValueParameterImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrVariableImpl
 import org.jetbrains.kotlin.ir.descriptors.WrappedClassDescriptor
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.*
 import org.jetbrains.kotlin.ir.symbols.*
 import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
-import org.jetbrains.kotlin.ir.symbols.impl.IrScriptSymbolImpl
-import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.*
+import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
+import org.jetbrains.kotlin.ir.types.impl.IrTypeAbbreviationImpl
+import org.jetbrains.kotlin.ir.types.impl.makeTypeProjection
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
@@ -73,11 +76,11 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
             irScriptClass.superTypes += context.irBuiltIns.anyType
             irScriptClass.parent = irFile
             irScriptClass.createImplicitParameterDeclarationWithWrappedDescriptor()
-            val symbolRemapper = DeepCopySymbolRemapperToScriptClass(irScript.symbol, irScriptClass.symbol)
-            val typeRemapper = DeepCopyTypeRemapper(symbolRemapper)
+            val symbolRemapper = ScriptToClassSymbolRemapper(irScript.symbol, irScriptClass.symbol)
+            val typeRemapper = ScriptTypeRemapper(symbolRemapper)
             val scriptTransformer = ScriptToClassTransformer(irScript, irScriptClass, symbolRemapper, typeRemapper)
             irScriptClass.thisReceiver = irScript.thisReceiver.run {
-                acceptVoid(symbolRemapper)
+//                acceptVoid(symbolRemapper)
                 transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrValueParameter
             }
 //            irScript.declarations.forEach {
@@ -185,35 +188,6 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
         IrDeclarationOriginImpl("FIELD_FOR_SCRIPT_VARIABL", isSynthetic = true)
 }
 
-private class DeepCopySymbolRemapperToScriptClass(
-    val scriptSymbol: IrScriptSymbol,
-    val scriptClassSymbol: IrClassSymbol
-) : DeepCopySymbolRemapper() {
-
-    override fun getReferencedClassifier(symbol: IrClassifierSymbol): IrClassifierSymbol =
-        super.getReferencedClassifier(
-            if (symbol == scriptSymbol) scriptClassSymbol
-            else symbol
-        )
-
-    override fun getReferencedProperty(symbol: IrPropertySymbol): IrPropertySymbol {
-        return super.getReferencedProperty(symbol)
-    }
-
-    override fun getReferencedVariable(symbol: IrVariableSymbol): IrVariableSymbol {
-        return super.getReferencedVariable(symbol)
-    }
-
-    private val scripts = hashMapOf<IrScriptSymbol, IrScriptSymbol>()
-
-    override fun visitScript(declaration: IrScript) {
-        remapSymbol(scripts, declaration) {
-            IrScriptSymbolImpl(it.descriptor)
-        }
-        declaration.acceptChildrenVoid(this)
-    }
-}
-
 fun <T : IrElement> T.patchDeclarationParentsToScriptClass(
     script: IrScript,
     scriptClass: IrClass
@@ -237,8 +211,8 @@ fun <T : IrElement> T.patchDeclarationParentsToScriptClass(
 private class ScriptToClassTransformer(
     val irScript: IrScript,
     val irScriptClass: IrClass,
-    val symbolRemapper: SymbolRemapper = DeepCopySymbolRemapperToScriptClass(irScript.symbol, irScriptClass.symbol),
-    val typeRemapper: TypeRemapper = DeepCopyTypeRemapper(symbolRemapper)
+    val symbolRemapper: SymbolRemapper = ScriptToClassSymbolRemapper(irScript.symbol, irScriptClass.symbol),
+    val typeRemapper: TypeRemapper = ScriptTypeRemapper(symbolRemapper)
 ) : IrElementTransformerVoid() {
 
     private fun IrType.remapType() = typeRemapper.remapType(this)
@@ -346,10 +320,31 @@ private class ScriptToClassTransformer(
         transformChildren()
     }
 
-    override fun visitVariable(declaration: IrVariable): IrVariable = declaration.apply {
-        transformParent()
-        transformAnnotations()
-        transformChildren()
+    override fun visitVariable(declaration: IrVariable): IrVariable {
+        val type = declaration.type.remapType()
+        val symbol = symbolRemapper.getDeclaredVariable(declaration.symbol)
+        val remappedDeclaration =
+            if (type == declaration.type && symbol == declaration.symbol) {
+                declaration
+            } else {
+                IrVariableImpl(
+                    declaration.startOffset, declaration.endOffset,
+                    declaration.origin,
+                    symbol,
+                    declaration.name,
+                    type,
+                    declaration.isVar,
+                    declaration.isConst,
+                    declaration.isLateinit
+                ).apply {
+                    parent = declaration.parent
+                }
+            }
+        return remappedDeclaration.apply {
+            transformParent()
+            transformAnnotations()
+            transformChildren()
+        }
     }
 
     override fun visitTypeParameter(declaration: IrTypeParameter): IrTypeParameter = declaration.apply {
@@ -975,4 +970,116 @@ private class ScriptToClassTransformer(
             dispatchReceiver = original.dispatchReceiver?.transform()
             extensionReceiver = original.extensionReceiver?.transform()
         }
+}
+
+private class ScriptToClassSymbolRemapper(
+    val irScriptSymbol: IrScriptSymbol,
+    val irScriptClassSymbol: IrClassSymbol
+): SymbolRemapper {
+    override fun getDeclaredClass(symbol: IrClassSymbol): IrClassSymbol = symbol
+
+    override fun getDeclaredScript(symbol: IrScriptSymbol): IrScriptSymbol = symbol
+
+    override fun getDeclaredFunction(symbol: IrSimpleFunctionSymbol): IrSimpleFunctionSymbol = symbol
+
+    override fun getDeclaredProperty(symbol: IrPropertySymbol): IrPropertySymbol = symbol
+
+    override fun getDeclaredField(symbol: IrFieldSymbol): IrFieldSymbol = symbol
+
+    override fun getDeclaredFile(symbol: IrFileSymbol): IrFileSymbol = symbol
+
+    override fun getDeclaredConstructor(symbol: IrConstructorSymbol): IrConstructorSymbol = symbol
+
+    override fun getDeclaredEnumEntry(symbol: IrEnumEntrySymbol): IrEnumEntrySymbol = symbol
+
+    override fun getDeclaredExternalPackageFragment(symbol: IrExternalPackageFragmentSymbol): IrExternalPackageFragmentSymbol = symbol
+
+    override fun getDeclaredVariable(symbol: IrVariableSymbol): IrVariableSymbol = symbol
+
+    override fun getDeclaredLocalDelegatedProperty(symbol: IrLocalDelegatedPropertySymbol): IrLocalDelegatedPropertySymbol = symbol
+
+    override fun getDeclaredTypeParameter(symbol: IrTypeParameterSymbol): IrTypeParameterSymbol = symbol
+
+    override fun getDeclaredValueParameter(symbol: IrValueParameterSymbol): IrValueParameterSymbol = symbol
+
+    override fun getDeclaredTypeAlias(symbol: IrTypeAliasSymbol): IrTypeAliasSymbol = symbol
+
+    override fun getReferencedClass(symbol: IrClassSymbol): IrClassSymbol = symbol
+
+    override fun getReferencedScript(symbol: IrScriptSymbol): IrScriptSymbol = symbol
+
+    override fun getReferencedClassOrNull(symbol: IrClassSymbol?): IrClassSymbol? = symbol
+
+    override fun getReferencedEnumEntry(symbol: IrEnumEntrySymbol): IrEnumEntrySymbol = symbol
+
+    override fun getReferencedVariable(symbol: IrVariableSymbol): IrVariableSymbol = symbol
+
+    override fun getReferencedLocalDelegatedProperty(symbol: IrLocalDelegatedPropertySymbol): IrLocalDelegatedPropertySymbol = symbol
+
+    override fun getReferencedField(symbol: IrFieldSymbol): IrFieldSymbol = symbol
+
+    override fun getReferencedConstructor(symbol: IrConstructorSymbol): IrConstructorSymbol = symbol
+
+    override fun getReferencedValue(symbol: IrValueSymbol): IrValueSymbol = symbol
+
+    override fun getReferencedFunction(symbol: IrFunctionSymbol): IrFunctionSymbol = symbol
+
+    override fun getReferencedProperty(symbol: IrPropertySymbol): IrPropertySymbol = symbol
+
+    override fun getReferencedSimpleFunction(symbol: IrSimpleFunctionSymbol): IrSimpleFunctionSymbol = symbol
+
+    override fun getReferencedReturnableBlock(symbol: IrReturnableBlockSymbol): IrReturnableBlockSymbol = symbol
+
+    override fun getReferencedClassifier(symbol: IrClassifierSymbol): IrClassifierSymbol =
+        if (symbol != irScriptSymbol) symbol
+        else irScriptClassSymbol
+
+    override fun getReferencedTypeAlias(symbol: IrTypeAliasSymbol): IrTypeAliasSymbol = symbol
+}
+
+class ScriptTypeRemapper(
+    private val symbolRemapper: SymbolRemapper
+) : TypeRemapper {
+
+    override fun enterScope(irTypeParametersContainer: IrTypeParametersContainer) {
+        // TODO
+    }
+
+    override fun leaveScope() {
+        // TODO
+    }
+
+    override fun remapType(type: IrType): IrType =
+        if (type !is IrSimpleType)
+            type
+        else {
+            val symbol = symbolRemapper.getReferencedClassifier(type.classifier)
+            val arguments = type.arguments.map { remapTypeArgument(it) }
+            if (symbol == type.classifier && arguments == type.arguments)
+                type
+            else {
+                IrSimpleTypeImpl(
+                    null,
+                    symbol,
+                    type.hasQuestionMark,
+                    arguments,
+                    type.annotations,
+                    type.abbreviation?.remapTypeAbbreviation()
+                )
+            }
+        }
+
+    private fun remapTypeArgument(typeArgument: IrTypeArgument): IrTypeArgument =
+        if (typeArgument is IrTypeProjection)
+            makeTypeProjection(this.remapType(typeArgument.type), typeArgument.variance)
+        else
+            typeArgument
+
+    private fun IrTypeAbbreviation.remapTypeAbbreviation() =
+        IrTypeAbbreviationImpl(
+            symbolRemapper.getReferencedTypeAlias(typeAlias),
+            hasQuestionMark,
+            arguments.map { remapTypeArgument(it) },
+            annotations
+        )
 }
