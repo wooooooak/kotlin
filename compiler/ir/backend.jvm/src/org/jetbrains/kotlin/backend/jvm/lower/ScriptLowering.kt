@@ -81,7 +81,7 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
             val scriptTransformer = ScriptToClassTransformer(irScript, irScriptClass, symbolRemapper, typeRemapper)
             irScriptClass.thisReceiver = irScript.thisReceiver.run {
 //                acceptVoid(symbolRemapper)
-                transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrValueParameter
+                transform(scriptTransformer, null)
             }
 //            irScript.declarations.forEach {
 //                it.acceptVoid(symbolRemapper)
@@ -118,7 +118,7 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                         context.irBuiltIns.unitType
                     )
                     irScript.statements.forEach {
-                        +((it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass)) as IrStatement)
+                        +it.transform(scriptTransformer, null)
                     }
                 }
             }
@@ -126,7 +126,7 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                 if (it is IrVariable) {
                     irScriptClass.addSimplePropertyFrom(it)
                 } else {
-                    val copy = it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irScriptClass) as IrDeclaration
+                    val copy = it.transform(scriptTransformer, null) as IrDeclaration
                     irScriptClass.declarations.add(copy)
                 }
             }
@@ -338,6 +338,7 @@ private class ScriptToClassTransformer(
                     declaration.isLateinit
                 ).apply {
                     parent = declaration.parent
+                    initializer = declaration.initializer
                 }
             }
         return remappedDeclaration.apply {
