@@ -118,7 +118,7 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                         context.irBuiltIns.unitType
                     )
                     irScript.statements.forEach {
-                        +it.transform(scriptTransformer, null)
+                        +((it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irConstructor)) as IrStatement)
                     }
                 }
             }
