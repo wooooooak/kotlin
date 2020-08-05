@@ -382,6 +382,12 @@ val jvmPhases = NamedCompilerPhase(
             processOptionalAnnotationsPhase then
             expectDeclarationsRemovingPhase then
             scriptToClassPhase then
+            // TODO: remove before submitting to review!
+            makeCustomPhase<JvmBackendContext, IrModuleFragment>(
+                { context, module -> validationCallback(context, module, checkProperties = true) },
+                name = "ValidateIrAfterScriptLowering",
+                description = "Validate IR after script lowering"
+            ) then
             fileClassPhase then
             performByIrFile(lower = jvmFilePhases) then
             generateMultifileFacadesPhase then
