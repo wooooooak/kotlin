@@ -157,17 +157,6 @@ internal fun IrFactory.buildConstructor(
     }
 }
 
-@PublishedApi
-internal fun IrFunctionBuilder.buildAnonymousInitializer(originalDescriptor: ClassDescriptor?): IrAnonymousInitializer {
-    val wrappedDescriptor =
-        if (originalDescriptor != null) WrappedClassDescriptor(originalDescriptor.annotations, originalDescriptor.source)
-        else WrappedClassDescriptor()
-    return IrAnonymousInitializerImpl(
-        startOffset, endOffset, origin,
-        IrAnonymousInitializerSymbolImpl(wrappedDescriptor)
-    )
-}
-
 inline fun IrFactory.buildFun(
     originalDescriptor: FunctionDescriptor? = null, builder: IrFunctionBuilder.() -> Unit
 ): IrSimpleFunction =
@@ -225,24 +214,6 @@ inline fun IrClass.addConstructor(builder: IrFunctionBuilder.() -> Unit = {}): I
     }.also { constructor ->
         declarations.add(constructor)
         constructor.parent = this@addConstructor
-    }
-
-inline fun buildAnonymousInitializer(
-    originalDescriptor: ClassDescriptor? = null,
-    builder: IrFunctionBuilder.() -> Unit
-): IrAnonymousInitializer =
-    IrFunctionBuilder().run {
-        builder()
-        buildAnonymousInitializer(originalDescriptor)
-    }
-
-inline fun IrClass.addAnonymousInitializer(builder: IrFunctionBuilder.() -> Unit = {}): IrAnonymousInitializer =
-    buildAnonymousInitializer {
-        builder()
-        returnType = defaultType
-    }.also { anonymousInitializer ->
-        declarations.add(anonymousInitializer)
-        anonymousInitializer.parent = this@addAnonymousInitializer
     }
 
 private val RECEIVER_PARAMETER_NAME = Name.special("<this>")

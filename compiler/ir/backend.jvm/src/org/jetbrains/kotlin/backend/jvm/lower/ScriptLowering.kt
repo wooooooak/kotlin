@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.backend.common.ir.createImplicitParameterDeclaration
 import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
 import org.jetbrains.kotlin.backend.common.phaser.makeIrModulePhase
 import org.jetbrains.kotlin.backend.jvm.JvmBackendContext
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Visibilities
@@ -21,23 +22,18 @@ import org.jetbrains.kotlin.ir.builders.declarations.*
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irDelegatingConstructorCall
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrTypeAliasImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrValueParameterImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrVariableImpl
+import org.jetbrains.kotlin.ir.declarations.impl.*
 import org.jetbrains.kotlin.ir.descriptors.WrappedClassDescriptor
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.*
 import org.jetbrains.kotlin.ir.symbols.*
+import org.jetbrains.kotlin.ir.symbols.impl.IrAnonymousInitializerSymbolImpl
 import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
 import org.jetbrains.kotlin.ir.types.*
 import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
 import org.jetbrains.kotlin.ir.types.impl.IrTypeAbbreviationImpl
 import org.jetbrains.kotlin.ir.types.impl.makeTypeProjection
-import org.jetbrains.kotlin.ir.util.SymbolRemapper
-import org.jetbrains.kotlin.ir.util.TypeRemapper
-import org.jetbrains.kotlin.ir.util.constructors
-import org.jetbrains.kotlin.ir.util.withinScope
+import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
@@ -143,7 +139,7 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
             updateFrom(from)
             name = from.name
         }.also { property ->
-            property.backingField = buildField {
+            property.backingField = context.irFactory.buildField {
                 name = from.name
                 type = from.type
                 visibility = Visibilities.PROTECTED
@@ -1084,3 +1080,34 @@ class ScriptTypeRemapper(
             annotations
         )
 }
+
+
+// TODO: find a right place for it or inline if needed only here
+private fun IrFunctionBuilder.buildAnonymousInitializer(originalDescriptor: ClassDescriptor?): IrAnonymousInitializer {
+    val wrappedDescriptor =
+        if (originalDescriptor != null) WrappedClassDescriptor(originalDescriptor.annotations, originalDescriptor.source)
+        else WrappedClassDescriptor()
+    return IrAnonymousInitializerImpl(
+        startOffset, endOffset, origin,
+        IrAnonymousInitializerSymbolImpl(wrappedDescriptor)
+    )
+}
+
+private inline fun buildAnonymousInitializer(
+    originalDescriptor: ClassDescriptor? = null,
+    builder: IrFunctionBuilder.() -> Unit
+): IrAnonymousInitializer =
+    IrFunctionBuilder().run {
+        builder()
+        buildAnonymousInitializer(originalDescriptor)
+    }
+
+private inline fun IrClass.addAnonymousInitializer(builder: IrFunctionBuilder.() -> Unit = {}): IrAnonymousInitializer =
+    buildAnonymousInitializer {
+        builder()
+        returnType = defaultType
+    }.also { anonymousInitializer ->
+        declarations.add(anonymousInitializer)
+        anonymousInitializer.parent = this@addAnonymousInitializer
+    }
+
