@@ -92,14 +92,14 @@ class FirTowerResolverSession internal constructor(
 
                         enqueueResolverTasksForInvokeReceiverCandidates(
                             invokeBuiltinExtensionMode, info,
-                            parentGroupForInvokeCandidates = if (towerGroup < TowerGroup.Member.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER)) towerGroup else TowerGroup.EmptyRoot,
+                            receiverGroup = towerGroup,
                             collector
                         )
                         collector.newDataSet()
                     }
                 }
             },
-            invokeReceiver = true
+            interceptor = TowerGroupInterceptor.InvokeReceiver
         )
         manager.enqueueResolverTask {
             task(invokeReceiverProcessor)
@@ -186,7 +186,7 @@ class FirTowerResolverSession internal constructor(
     private fun enqueueResolverTasksForInvokeReceiverCandidates(
         extensionInvokeOnActualReceiver: Boolean,
         info: CallInfo,
-        parentGroupForInvokeCandidates: TowerGroup,
+        receiverGroup: TowerGroup,
         collector: CandidateCollector
     ) {
         val invokeBuiltinExtensionMode: Boolean = extensionInvokeOnActualReceiver
@@ -230,7 +230,7 @@ class FirTowerResolverSession internal constructor(
                 explicitReceiver,
                 invokeBuiltinExtensionMode,
                 useImplicitReceiverAsBuiltinInvokeArgument,
-                parentGroupForInvokeCandidates
+                receiverGroup
             )
         }
     }
@@ -240,7 +240,7 @@ class FirTowerResolverSession internal constructor(
         explicitReceiver: ExpressionReceiverValue,
         invokeBuiltinExtensionMode: Boolean,
         useImplicitReceiverAsBuiltinInvokeArgument: Boolean,
-        parentGroupForInvokeCandidates: TowerGroup
+        receiverGroup: TowerGroup
     ) {
         val invokeOnGivenReceiverCandidateFactory = CandidateFactory(components, invokeFunctionInfo)
         val handler = TowerLevelHandler(
@@ -248,12 +248,12 @@ class FirTowerResolverSession internal constructor(
             candidateFactoriesAndCollectors,
             invokeOnGivenReceiverCandidateFactory
         )
-        val task = FirTowerResolveProcessor(handler)
+        val task = FirTowerResolveProcessor(handler, interceptor = TowerGroupInterceptor.InvokeFunction(receiverGroup))
         if (invokeBuiltinExtensionMode) {
             manager.enqueueResolverTask {
                 task.runResolverForBuiltinInvokeExtensionWithExplicitArgument(
                     invokeFunctionInfo, explicitReceiver,
-                    parentGroupForInvokeCandidates
+                    TowerGroup.EmptyRoot
                 )
             }
         } else {
@@ -261,7 +261,7 @@ class FirTowerResolverSession internal constructor(
                 manager.enqueueResolverTask {
                     task.runResolverForBuiltinInvokeExtensionWithImplicitArgument(
                         invokeFunctionInfo, explicitReceiver,
-                        parentGroupForInvokeCandidates
+                        TowerGroup.EmptyRoot
                     )
                 }
             }
@@ -269,14 +269,34 @@ class FirTowerResolverSession internal constructor(
             manager.enqueueResolverTask {
                 task.runResolverForInvoke(
                     invokeFunctionInfo, explicitReceiver,
-                    parentGroupForInvokeCandidates
+                    TowerGroup.EmptyRoot
                 )
             }
         }
     }
 
+    private sealed class TowerGroupInterceptor {
+        abstract fun intercept(group: TowerGroup): TowerGroup
 
-    private inner class FirTowerResolveProcessor(private val handler: TowerLevelHandler, val invokeReceiver: Boolean = false) {
+        object None : TowerGroupInterceptor() {
+            override fun intercept(group: TowerGroup) = group
+        }
+
+        object InvokeReceiver : TowerGroupInterceptor() {
+            override fun intercept(group: TowerGroup) = group.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER)
+        }
+
+        class InvokeFunction(val receiverGroup: TowerGroup) : TowerGroupInterceptor() {
+            override fun intercept(group: TowerGroup): TowerGroup =
+                maxOf(group.InvokeResolvePriority(InvokeResolvePriority.COMMON_INVOKE), receiverGroup)
+        }
+    }
+
+
+    private inner class FirTowerResolveProcessor(
+        private val handler: TowerLevelHandler,
+        val interceptor: TowerGroupInterceptor = TowerGroupInterceptor.None
+    ) {
 
         private suspend inline fun processLevel(
             towerLevel: SessionBasedTowerLevel,
@@ -285,14 +305,14 @@ class FirTowerResolverSession internal constructor(
             explicitReceiverKind: ExplicitReceiverKind = ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
             onEmptyLevel: (TowerGroup) -> Unit = {}
         ) {
-            val rGroup = if (invokeReceiver) group.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER) else group
-            manager.requestGroup(rGroup)
+            val finalGroup = interceptor.intercept(group)
+            manager.requestGroup(finalGroup)
 
 
             handler.handleLevel(
                 callInfo,
                 explicitReceiverKind,
-                rGroup,
+                finalGroup,
                 towerLevel,
                 onEmptyLevel
             )
@@ -371,11 +391,11 @@ class FirTowerResolverSession internal constructor(
                 // NB: yet built-in Unit is used for "no-value" type
                 if (info.callKind == CallKind.CallableReference) {
                     if (info.stubReceiver != null || typeRef !is FirImplicitBuiltinTypeRef) {
-                        runResolverForExpressionReceiver(info, resolvedQualifier)
+                        runResolverForExpressionReceiver(info, resolvedQualifier, parentGroup = TowerGroup.QualifierValue)
                     }
                 } else {
                     if (typeRef !is FirImplicitBuiltinTypeRef) {
-                        runResolverForExpressionReceiver(info, resolvedQualifier)
+                        runResolverForExpressionReceiver(info, resolvedQualifier, parentGroup = TowerGroup.QualifierValue)
                     }
                 }
             }
@@ -432,7 +452,8 @@ class FirTowerResolverSession internal constructor(
 
         private suspend fun processExtensionsThatHideMembers(
             info: CallInfo,
-            explicitReceiverValue: ReceiverValue?
+            explicitReceiverValue: ReceiverValue?,
+            parentGroup: TowerGroup = TowerGroup.EmptyRoot
         ) {
             val shouldProcessExtensionsBeforeMembers =
                 info.callKind == CallKind.Function && info.name in HIDES_MEMBERS_NAME_LIST
@@ -444,13 +465,13 @@ class FirTowerResolverSession internal constructor(
                 if (explicitReceiverValue != null) {
                     processHideMembersLevel(
                         explicitReceiverValue, topLevelScope, info, index, depth = null,
-                        ExplicitReceiverKind.EXTENSION_RECEIVER
+                        ExplicitReceiverKind.EXTENSION_RECEIVER, parentGroup
                     )
                 } else {
                     for ((implicitReceiverValue, depth) in implicitReceivers) {
                         processHideMembersLevel(
                             implicitReceiverValue, topLevelScope, info, index, depth,
-                            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER
+                            ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, parentGroup
                         )
                     }
                 }
@@ -463,13 +484,14 @@ class FirTowerResolverSession internal constructor(
             info: CallInfo,
             index: Int,
             depth: Int?,
-            explicitReceiverKind: ExplicitReceiverKind
+            explicitReceiverKind: ExplicitReceiverKind,
+            parentGroup: TowerGroup
         ) = processLevel(
             topLevelScope.toScopeTowerLevel(
                 extensionReceiver = receiverValue, extensionsOnly = true
             ),
             info,
-            TowerGroup.TopPrioritized(index).let { if (depth != null) it.Implicit(depth) else it },
+            parentGroup.TopPrioritized(index).let { if (depth != null) it.Implicit(depth) else it },
             explicitReceiverKind,
         )
 
@@ -513,15 +535,16 @@ class FirTowerResolverSession internal constructor(
 
         suspend fun runResolverForExpressionReceiver(
             info: CallInfo,
-            receiver: FirExpression
+            receiver: FirExpression,
+            parentGroup: TowerGroup = TowerGroup.EmptyRoot
         ) {
             val explicitReceiverValue = ExpressionReceiverValue(receiver)
 
-            processExtensionsThatHideMembers(info, explicitReceiverValue)
+            processExtensionsThatHideMembers(info, explicitReceiverValue, parentGroup)
 
             // Member scope of expression receiver
             processLevel(
-                explicitReceiverValue.toMemberScopeTowerLevel(), info, TowerGroup.Member, ExplicitReceiverKind.DISPATCH_RECEIVER
+                explicitReceiverValue.toMemberScopeTowerLevel(), info, parentGroup.Member, ExplicitReceiverKind.DISPATCH_RECEIVER
             )
 
             val shouldProcessExplicitReceiverScopeOnly =
@@ -532,6 +555,7 @@ class FirTowerResolverSession internal constructor(
             }
 
             enumerateTowerLevels(
+                parentGroup = parentGroup,
                 onScope = { scope, group ->
                     processScopeForExplicitReceiver(
                         scope,
