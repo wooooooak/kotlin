@@ -328,6 +328,11 @@ public class ExtendedFirDiagnosticsTestGenerated extends AbstractExtendedFirDiag
         public void testLocalVariable() throws Exception {
             runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/localVariable.kt");
         }
+
+        @TestMetadata("UnusedUnaryOperator.kt")
+        public void testUnusedUnaryOperator() throws Exception {
+            runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/UnusedUnaryOperator.kt");
+        }
     }
 }
 
