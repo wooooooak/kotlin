@@ -34,7 +34,10 @@ import org.jetbrains.kotlin.ir.types.*
 import org.jetbrains.kotlin.ir.types.impl.IrSimpleTypeImpl
 import org.jetbrains.kotlin.ir.types.impl.IrTypeAbbreviationImpl
 import org.jetbrains.kotlin.ir.types.impl.makeTypeProjection
-import org.jetbrains.kotlin.ir.util.*
+import org.jetbrains.kotlin.ir.util.SymbolRemapper
+import org.jetbrains.kotlin.ir.util.TypeRemapper
+import org.jetbrains.kotlin.ir.util.constructors
+import org.jetbrains.kotlin.ir.util.withinScope
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
@@ -80,15 +83,8 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
             val typeRemapper = ScriptTypeRemapper(symbolRemapper)
             val scriptTransformer = ScriptToClassTransformer(irScript, irScriptClass, symbolRemapper, typeRemapper)
             irScriptClass.thisReceiver = irScript.thisReceiver.run {
-//                acceptVoid(symbolRemapper)
                 transform(scriptTransformer, null)
             }
-//            irScript.declarations.forEach {
-//                it.acceptVoid(symbolRemapper)
-//            }
-//            irScript.statements.forEach {
-//                it.acceptVoid(symbolRemapper)
-//            }
             irScriptClass.addConstructor {
                 isPrimary = true
             }.also { irConstructor ->
@@ -117,9 +113,6 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                         irScriptClass.symbol,
                         context.irBuiltIns.unitType
                     )
-                    irScript.statements.forEach {
-                        +((it.transform(scriptTransformer, null).patchDeclarationParents<IrElement>(irConstructor)) as IrStatement)
-                    }
                 }
             }
             irScript.declarations.forEach {
@@ -128,6 +121,13 @@ private class ScriptToClassLowering(val context: JvmBackendContext) : FileLoweri
                 } else {
                     val copy = it.transform(scriptTransformer, null) as IrDeclaration
                     irScriptClass.declarations.add(copy)
+                }
+            }
+            irScript.statements.forEach { scriptStatement ->
+                irScriptClass.addAnonymousInitializer().also { irInitializer ->
+                    irInitializer.body = context.createIrBuilder(irInitializer.symbol).irBlockBody {
+                        +scriptStatement.transform(scriptTransformer, null)
+                    }
                 }
             }
             irScriptClass.annotations += irFile.annotations
