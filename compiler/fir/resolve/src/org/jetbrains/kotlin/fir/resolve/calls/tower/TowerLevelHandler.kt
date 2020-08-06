@@ -38,8 +38,8 @@ typealias EnqueueTasksForInvokeReceiverCandidates = () -> Unit
 
 internal open class TowerLevelHandler(
     val collector: CandidateCollector,
-    val candidateFactoriesAndCollectors: CandidateFactoriesAndCollectors,
-    val candidateFactory: CandidateFactory
+    val candidateFactory: CandidateFactory,
+    val stubReceiverCandidateFactory: CandidateFactory? = null
 ) {
 
     // Try to avoid adding additional state here
@@ -99,7 +99,7 @@ internal open class TowerLevelHandler(
                             ExplicitReceiverKind.EXTENSION_RECEIVER
                         },
                         resultCollector,
-                        candidateFactoriesAndCollectors.stubReceiverCandidateFactory!!, group
+                        stubReceiverCandidateFactory!!, group
                     )
                     val towerLevelWithStubReceiver = towerLevel.replaceReceiverValue(stubReceiverValue)
                     towerLevelWithStubReceiver.processFunctionsAndProperties(info.name, stubProcessor)

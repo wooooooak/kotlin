@@ -54,26 +54,13 @@ class FirTowerResolver(
             else
                 null
 
-        var invokeReceiverCollector: CandidateCollector? = null
-        var invokeReceiverCandidateFactory: CandidateFactory? = null
-        var invokeBuiltinExtensionReceiverCandidateFactory: CandidateFactory? = null
-        if (info.callKind == CallKind.Function) {
-            invokeReceiverCollector = CandidateCollector(components, components.resolutionStageRunner)
-            invokeReceiverCandidateFactory = CandidateFactory(components, info.replaceWithVariableAccess())
-            if (info.explicitReceiver != null) {
-                with(invokeReceiverCandidateFactory) {
-                    invokeBuiltinExtensionReceiverCandidateFactory = replaceCallInfo(callInfo.replaceExplicitReceiver(null))
-                }
-            }
-        }
-
         return CandidateFactoriesAndCollectors(
             candidateFactory,
             collector,
             stubReceiverCandidateFactory,
-            invokeReceiverCandidateFactory,
-            invokeReceiverCollector,
-            invokeBuiltinExtensionReceiverCandidateFactory
+            invokeReceiverCandidateFactory = null,
+            invokeReceiverCollector = null,
+            invokeBuiltinExtensionReceiverCandidateFactory = null
         )
     }
 
