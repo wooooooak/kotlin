@@ -57,10 +57,7 @@ class FirTowerResolver(
         return CandidateFactoriesAndCollectors(
             candidateFactory,
             collector,
-            stubReceiverCandidateFactory,
-            invokeReceiverCandidateFactory = null,
-            invokeReceiverCollector = null,
-            invokeBuiltinExtensionReceiverCandidateFactory = null
+            stubReceiverCandidateFactory
         )
     }
 

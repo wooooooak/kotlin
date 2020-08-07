@@ -25,13 +25,6 @@ internal class CandidateFactoriesAndCollectors(
 
     // Callable references
     val stubReceiverCandidateFactory: CandidateFactory?,
-
-    // invoke receivers
-    val invokeReceiverCandidateFactory: CandidateFactory?,
-    val invokeReceiverCollector: CandidateCollector?,
-
-    // invokeExtensionReceivers
-    val invokeBuiltinExtensionReceiverCandidateFactory: CandidateFactory?
 )
 
 typealias EnqueueTasksForInvokeReceiverCandidates = () -> Unit
