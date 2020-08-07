@@ -19,7 +19,12 @@ class TowerResolveManager private constructor(private val shouldStopAtTheLevel: 
         queue.clear()
     }
 
-    private suspend fun suspendResolverTask(group: TowerGroup) = suspendCoroutine<Unit> { queue += SuspendedResolverTask(it, group) }
+    private suspend fun suspendResolverTask(group: TowerGroup) =
+        suspendCoroutine<Unit> {
+            val nextTask = queue.poll()
+            queue += SuspendedResolverTask(it, group)
+            if (nextTask != null) resumeTask(nextTask)
+        }
 
     suspend fun requestGroup(requested: TowerGroup) {
         if (shouldStopAtTheLevel(requested)) {
@@ -60,13 +65,17 @@ class TowerResolveManager private constructor(private val shouldStopAtTheLevel: 
         queue += SuspendedResolverTask(continuation, group)
     }
 
+    private fun resumeTask(task: SuspendedResolverTask) {
+        if (shouldStopAtTheLevel(task.group)) {
+            return
+        }
+        task.continuation.resume(Unit)
+    }
+
     fun runTasks() {
         while (queue.isNotEmpty()) {
             val current = queue.poll()
-            if (shouldStopAtTheLevel(current.group)) {
-                return
-            }
-            current.continuation.resume(Unit)
+            resumeTask(current)
         }
     }
 }
