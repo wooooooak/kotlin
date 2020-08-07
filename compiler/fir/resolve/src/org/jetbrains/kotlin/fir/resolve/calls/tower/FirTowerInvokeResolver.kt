@@ -30,22 +30,38 @@ class FirTowerInvokeResolver(private val resolverSession: FirTowerResolverSessio
 
     fun enhanceQualifierResolve(info: CallInfo, receiver: FirResolvedQualifier) {
         if (info.callKind == CallKind.Function) {
-            val receiverInfo = info.replaceWithVariableAccess()
-            enqueueInvokeReceiverTask(
+            enqueueBothInvokeReceiverTasks(
                 info,
-                receiverInfo,
-                invokeBuiltinExtensionMode = false
-            ) {
-                it.runResolverForQualifierReceiver(receiverInfo, receiver)
-            }
-            val receiverInfo2 = info.replaceWithVariableAccess().replaceExplicitReceiver(null)
-            enqueueInvokeReceiverTask(
-                info,
-                receiverInfo2,
-                invokeBuiltinExtensionMode = true
-            ) {
-                it.runResolverForNoReceiver(receiverInfo2)
-            }
+                invokeAction = { task, receiverInfo ->
+                    task.runResolverForQualifierReceiver(receiverInfo, receiver)
+                },
+                invokeExtensionAction = { task, receiverInfo ->
+                    task.runResolverForNoReceiver(receiverInfo)
+                }
+            )
+        }
+    }
+
+    private inline fun enqueueBothInvokeReceiverTasks(
+        originalCallInfo: CallInfo,
+        crossinline invokeAction: suspend (FirTowerResolveTask, CallInfo) -> Unit,
+        crossinline invokeExtensionAction: suspend (FirTowerResolveTask, CallInfo) -> Unit
+    ) {
+        val receiverInfo = originalCallInfo.replaceWithVariableAccess()
+        val receiverInfo2 = receiverInfo.replaceExplicitReceiver(null)
+        enqueueInvokeReceiverTask(
+            originalCallInfo,
+            receiverInfo,
+            invokeBuiltinExtensionMode = false
+        ) {
+            invokeAction(it, receiverInfo)
+        }
+        enqueueInvokeReceiverTask(
+            originalCallInfo,
+            receiverInfo2,
+            invokeBuiltinExtensionMode = true
+        ) {
+            invokeExtensionAction(it, receiverInfo2)
         }
     }
 
@@ -64,22 +80,15 @@ class FirTowerInvokeResolver(private val resolverSession: FirTowerResolverSessio
 
     fun enhanceResolveForExpressionReceiver(info: CallInfo, receiver: FirExpression) {
         if (info.callKind == CallKind.Function) {
-            val receiverInfo = info.replaceWithVariableAccess()
-            enqueueInvokeReceiverTask(
+            enqueueBothInvokeReceiverTasks(
                 info,
-                receiverInfo,
-                invokeBuiltinExtensionMode = false
-            ) {
-                it.runResolverForExpressionReceiver(receiverInfo, receiver)
-            }
-            val receiverInfo2 = info.replaceWithVariableAccess().replaceExplicitReceiver(null)
-            enqueueInvokeReceiverTask(
-                info,
-                receiverInfo2,
-                invokeBuiltinExtensionMode = true
-            ) {
-                it.runResolverForNoReceiver(receiverInfo2)
-            }
+                invokeAction = { task, receiverInfo ->
+                    task.runResolverForExpressionReceiver(receiverInfo, receiver)
+                },
+                invokeExtensionAction = { task, receiverInfo ->
+                    task.runResolverForNoReceiver(receiverInfo)
+                }
+            )
         }
     }
 
