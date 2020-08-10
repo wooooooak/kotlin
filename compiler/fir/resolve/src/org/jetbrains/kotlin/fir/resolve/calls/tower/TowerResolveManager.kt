@@ -80,8 +80,3 @@ class TowerResolveManager private constructor(private val shouldStopAtTheLevel: 
         }
     }
 }
-
-enum class InvokeResolveMode {
-    IMPLICIT_CALL_ON_GIVEN_RECEIVER,
-    RECEIVER_FOR_INVOKE_BUILTIN_EXTENSION
-}
