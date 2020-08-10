@@ -15,7 +15,6 @@ import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
 
 class FirControlFlowAnalyzer(session: FirSession) {
-    private val controlFlowAnalyserCheckers = session.checkersComponent.declarationCheckers.controlFlowAnalyserCheckers
     private val variableAssignmentCheckers = session.checkersComponent.declarationCheckers.variableAssignmentCfaBasedCheckers
 
     fun analyzeClassInitializer(klass: FirClass<*>, graph: ControlFlowGraph, context: CheckerContext, reporter: DiagnosticReporter) {
@@ -26,9 +25,9 @@ class FirControlFlowAnalyzer(session: FirSession) {
     fun analyzeFunction(function: FirFunction<*>, graph: ControlFlowGraph, context: CheckerContext, reporter: DiagnosticReporter) {
         if (graph.owner != null) return
 
-        val properties = AbstractFirPropertyInitializationChecker.LocalPropertyCollector.collect(graph)
+        val properties = AbstractFirCFAPropertyAssignmentChecker.LocalPropertyCollector.collect(graph)
         if (properties.isEmpty()) return
-        val data = AbstractFirPropertyInitializationChecker.DataCollector(properties).getData(graph)
+        val data = AbstractFirCFAPropertyAssignmentChecker.DataCollector(properties).getData(graph)
 
         variableAssignmentCheckers.forEach { it.analyze(graph, reporter, data, properties) }
     }

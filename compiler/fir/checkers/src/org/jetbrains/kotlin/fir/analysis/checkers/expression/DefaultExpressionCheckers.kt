@@ -5,14 +5,8 @@
 
 package org.jetbrains.kotlin.fir.analysis.checkers.expression
 
-import org.jetbrains.kotlin.fir.analysis.checkers.extended.*
-
 object CommonExpressionCheckers : ExpressionCheckers() {
-    override val expressionCheckers: List<FirBasicExpresionChecker> = listOf(
-        ArrayEqualityCanBeReplacedWithEquals,
-        RedundantSingleExpressionStringTemplateChecker,
-        EmptyRangeChecker
-    )
+    override val expressionCheckers: List<FirBasicExpresionChecker> = listOf()
     override val qualifiedAccessCheckers: List<FirQualifiedAccessChecker> = listOf(
         FirSuperNotAvailableChecker,
         FirNotASupertypeChecker,
@@ -22,10 +16,6 @@ object CommonExpressionCheckers : ExpressionCheckers() {
         FirProjectionsOnNonClassTypeArgumentChecker,
         FirUpperBoundViolatedChecker,
         FirTypeArgumentsNotAllowedExpressionChecker,
-        RedundantCallOfConversionMethod
     )
     override val functionCallCheckers: List<FirFunctionCallChecker> = listOf()
-    override val variableAssignmentCheckers: List<FirVariableAssignmentChecker> = listOf(
-        CanBeReplacedWithOperatorAssignmentChecker
-    )
 }

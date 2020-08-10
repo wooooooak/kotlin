@@ -13,7 +13,7 @@ import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
 
-abstract class AbstractFirPropertyInitializationChecker {
+abstract class AbstractFirCFAPropertyAssignmentChecker {
     abstract fun analyze(
         graph: ControlFlowGraph,
         reporter: DiagnosticReporter,

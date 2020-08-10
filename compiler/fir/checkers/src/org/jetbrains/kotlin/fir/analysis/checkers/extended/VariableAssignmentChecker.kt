@@ -9,7 +9,7 @@ package org.jetbrains.kotlin.fir.analysis.checkers.extended
 import org.jetbrains.kotlin.contracts.description.EventOccurrencesRange
 import org.jetbrains.kotlin.fir.FirFakeSourceElement
 import org.jetbrains.kotlin.fir.FirSourceElement
-import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirPropertyInitializationChecker
+import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCFAPropertyAssignmentChecker
 import org.jetbrains.kotlin.fir.analysis.cfa.TraverseDirection
 import org.jetbrains.kotlin.fir.analysis.cfa.traverse
 import org.jetbrains.kotlin.fir.analysis.diagnostics.DiagnosticReporter
@@ -22,7 +22,7 @@ import org.jetbrains.kotlin.fir.toFirPsiSourceElement
 import org.jetbrains.kotlin.psi.KtProperty
 
 
-object VariableAssignmentChecker : AbstractFirPropertyInitializationChecker() {
+object VariableAssignmentChecker : AbstractFirCFAPropertyAssignmentChecker() {
     override fun analyze(
         graph: ControlFlowGraph,
         reporter: DiagnosticReporter,
@@ -64,7 +64,7 @@ object VariableAssignmentChecker : AbstractFirPropertyInitializationChecker() {
                     destructuringCanBeVal = false
                 }
                 lastDestructuredVariables--
-            } else if (canBeVal(symbol, value) && symbol.fir.delegate == null ) {
+            } else if (canBeVal(symbol, value) && symbol.fir.delegate == null) {
                 reporter.report(source, FirErrors.CAN_BE_VAL)
             }
         }
