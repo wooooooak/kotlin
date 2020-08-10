@@ -29,7 +29,7 @@ internal class CandidateFactoriesAndCollectors(
 
 typealias EnqueueTasksForInvokeReceiverCandidates = () -> Unit
 
-internal open class TowerLevelHandler(
+internal class TowerLevelHandler(
     val collector: CandidateCollector,
     val candidateFactory: CandidateFactory,
     val stubReceiverCandidateFactory: CandidateFactory? = null
@@ -37,21 +37,6 @@ internal open class TowerLevelHandler(
 
     // Try to avoid adding additional state here
     private var processResult = ProcessorAction.NONE
-
-    open fun onSuccessfulLevel(towerGroup: TowerGroup) {}
-
-    inline fun handleLevel(
-        info: CallInfo,
-        explicitReceiverKind: ExplicitReceiverKind,
-        group: TowerGroup,
-        towerLevel: SessionBasedTowerLevel,
-        onEmptyLevel: (TowerGroup) -> Unit
-    ) {
-        if (handleLevel(info, explicitReceiverKind, group, towerLevel) == ProcessorAction.NONE) {
-            onEmptyLevel(group)
-        }
-        if (collector.isSuccess()) onSuccessfulLevel(group)
-    }
 
     fun handleLevel(
         info: CallInfo,

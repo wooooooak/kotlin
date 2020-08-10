@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.fir.resolve.calls.*
 import org.jetbrains.kotlin.fir.resolve.scope
 import org.jetbrains.kotlin.fir.scopes.FirCompositeScope
 import org.jetbrains.kotlin.fir.scopes.FirScope
+import org.jetbrains.kotlin.fir.scopes.ProcessorAction
 import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
@@ -28,25 +29,42 @@ internal abstract class FirBaseTowerResolveTask(
     protected val components get() = resolverSession.components
 
     open fun interceptTowerGroup(towerGroup: TowerGroup) = towerGroup
+    open fun onSuccessfulLevel(towerGroup: TowerGroup) {}
+
+    /**
+     * @return true if level is empty
+     */
+    private suspend fun processLevel(
+        towerLevel: SessionBasedTowerLevel,
+        callInfo: CallInfo,
+        group: TowerGroup,
+        explicitReceiverKind: ExplicitReceiverKind
+    ): Boolean {
+        val finalGroup = interceptTowerGroup(group)
+        resolverSession.manager.requestGroup(finalGroup)
+
+
+        val result = handler.handleLevel(
+            callInfo,
+            explicitReceiverKind,
+            finalGroup,
+            towerLevel
+        )
+        if (handler.collector.isSuccess()) onSuccessfulLevel(finalGroup)
+        return result == ProcessorAction.NONE
+
+    }
 
     protected suspend inline fun processLevel(
         towerLevel: SessionBasedTowerLevel,
         callInfo: CallInfo,
         group: TowerGroup,
         explicitReceiverKind: ExplicitReceiverKind = ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
-        onEmptyLevel: (TowerGroup) -> Unit = {}
+        onEmptyLevel: () -> Unit = {}
     ) {
-        val finalGroup = interceptTowerGroup(group)
-        resolverSession.manager.requestGroup(finalGroup)
-
-
-        handler.handleLevel(
-            callInfo,
-            explicitReceiverKind,
-            finalGroup,
-            towerLevel,
-            onEmptyLevel
-        )
+        if (processLevel(towerLevel, callInfo, group, explicitReceiverKind)) {
+            onEmptyLevel()
+        }
     }
 
 

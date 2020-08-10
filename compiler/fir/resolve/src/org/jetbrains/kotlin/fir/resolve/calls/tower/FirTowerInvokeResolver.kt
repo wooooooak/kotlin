@@ -99,23 +99,20 @@ class FirTowerInvokeResolver(private val resolverSession: FirTowerResolverSessio
         invokeBuiltinExtensionMode: Boolean,
         crossinline task: suspend (FirTowerResolveTask) -> Unit
     ) {
+        val collector = CandidateCollector(components, components.resolutionStageRunner)
         val invokeReceiverProcessor = InvokeReceiverResolveTask(
             resolverSession,
-            object : TowerLevelHandler(
-                CandidateCollector(components, components.resolutionStageRunner),
+            TowerLevelHandler(
+                collector,
                 CandidateFactory(components, invokeReceiverInfo)
-            ) {
-                override fun onSuccessfulLevel(towerGroup: TowerGroup) {
-                    if (collector.isSuccess()) {
-
-                        enqueueResolverTasksForInvokeReceiverCandidates(
-                            invokeBuiltinExtensionMode, info,
-                            receiverGroup = towerGroup,
-                            collector
-                        )
-                        collector.newDataSet()
-                    }
-                }
+            ),
+            onSuccessfulLevel = { towerGroup ->
+                enqueueResolverTasksForInvokeReceiverCandidates(
+                    invokeBuiltinExtensionMode, info,
+                    receiverGroup = towerGroup,
+                    collector
+                )
+                collector.newDataSet()
             }
         )
         resolverSession.manager.enqueueResolverTask {
@@ -217,7 +214,8 @@ class FirTowerInvokeResolver(private val resolverSession: FirTowerResolverSessio
 
     internal class InvokeReceiverResolveTask(
         resolverSession: FirTowerResolverSession,
-        handler: TowerLevelHandler
+        handler: TowerLevelHandler,
+        onSuccessfulLevel: (TowerGroup) -> Unit
     ) : FirTowerResolveTask(resolverSession, handler) {
         override fun interceptTowerGroup(towerGroup: TowerGroup): TowerGroup =
             towerGroup.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER)
