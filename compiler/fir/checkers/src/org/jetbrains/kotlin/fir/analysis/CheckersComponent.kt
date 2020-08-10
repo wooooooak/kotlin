@@ -7,7 +7,8 @@ package org.jetbrains.kotlin.fir.analysis
 
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.FirSessionComponent
-import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCFAPropertyAssignmentChecker
+import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCfaPropertyAssignmentChecker
+import org.jetbrains.kotlin.fir.analysis.checkers.cfa.FirControlFlowChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.*
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.*
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
@@ -63,7 +64,9 @@ private class ComposedDeclarationCheckers : DeclarationCheckers() {
         get() = _regularClassCheckers
     override val constructorCheckers: List<FirConstructorChecker>
         get() = _constructorCheckers
-    override val variableAssignmentCfaBasedCheckers: List<AbstractFirCFAPropertyAssignmentChecker>
+    override val controlFlowAnalyserCheckers: List<FirControlFlowChecker>
+        get() = _controlFlowAnalyserCheckers
+    override val variableAssignmentCfaBasedCheckers: List<AbstractFirCfaPropertyAssignmentChecker>
         get() = _variableAssignmentCfaBasedCheckers
 
     private val _fileCheckers: MutableList<FirFileChecker> = mutableListOf()
@@ -71,7 +74,8 @@ private class ComposedDeclarationCheckers : DeclarationCheckers() {
     private val _memberDeclarationCheckers: MutableList<FirMemberDeclarationChecker> = mutableListOf()
     private val _regularClassCheckers: MutableList<FirRegularClassChecker> = mutableListOf()
     private val _constructorCheckers: MutableList<FirConstructorChecker> = mutableListOf()
-    private val _variableAssignmentCfaBasedCheckers: MutableList<AbstractFirCFAPropertyAssignmentChecker> = mutableListOf()
+    private val _controlFlowAnalyserCheckers: MutableList<FirControlFlowChecker> = mutableListOf()
+    private val _variableAssignmentCfaBasedCheckers: MutableList<AbstractFirCfaPropertyAssignmentChecker> = mutableListOf()
 
     fun register(checkers: DeclarationCheckers) {
         _fileCheckers += checkers.allFileCheckers
@@ -79,6 +83,7 @@ private class ComposedDeclarationCheckers : DeclarationCheckers() {
         _memberDeclarationCheckers += checkers.allMemberDeclarationCheckers
         _regularClassCheckers += checkers.allRegularClassCheckers
         _constructorCheckers += checkers.allConstructorCheckers
+        _controlFlowAnalyserCheckers += checkers.controlFlowAnalyserCheckers
         _variableAssignmentCfaBasedCheckers += checkers.variableAssignmentCfaBasedCheckers
     }
 }

@@ -5,7 +5,7 @@
 
 package org.jetbrains.kotlin.fir.analysis.checkers.declaration
 
-import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCFAPropertyAssignmentChecker
+import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCfaPropertyAssignmentChecker
 import org.jetbrains.kotlin.fir.analysis.cfa.FirPropertyInitializationAnalyzer
 
 object CommonDeclarationCheckers : DeclarationCheckers() {
@@ -39,7 +39,7 @@ object CommonDeclarationCheckers : DeclarationCheckers() {
         FirConstructorAllowedChecker,
     )
 
-    override val variableAssignmentCfaBasedCheckers: List<AbstractFirCFAPropertyAssignmentChecker> = listOf(
+    override val variableAssignmentCfaBasedCheckers: List<AbstractFirCfaPropertyAssignmentChecker> = listOf(
         FirPropertyInitializationAnalyzer
     )
 }
