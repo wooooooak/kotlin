@@ -215,10 +215,14 @@ class FirTowerInvokeResolver(private val resolverSession: FirTowerResolverSessio
     internal class InvokeReceiverResolveTask(
         resolverSession: FirTowerResolverSession,
         handler: TowerLevelHandler,
-        onSuccessfulLevel: (TowerGroup) -> Unit
+        private val onSuccessfulLevel: (TowerGroup) -> Unit
     ) : FirTowerResolveTask(resolverSession, handler) {
         override fun interceptTowerGroup(towerGroup: TowerGroup): TowerGroup =
             towerGroup.InvokeResolvePriority(InvokeResolvePriority.INVOKE_RECEIVER)
+
+        override fun onSuccessfulLevel(towerGroup: TowerGroup) {
+            this.onSuccessfulLevel.invoke(towerGroup)
+        }
     }
 
     internal class InvokeFunctionResolveTask(
