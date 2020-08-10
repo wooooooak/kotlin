@@ -8,6 +8,7 @@ package org.jetbrains.kotlin.fir.resolve.calls.tower
 import org.jetbrains.kotlin.fir.resolve.calls.CandidateCollector
 import java.util.*
 import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.createCoroutineUnintercepted
 
 class TowerResolveManager private constructor(private val shouldStopAtTheLevel: (TowerGroup) -> Boolean) {
 
@@ -51,7 +52,7 @@ class TowerResolveManager private constructor(private val shouldStopAtTheLevel: 
     }
 
     fun enqueueResolverTask(group: TowerGroup = TowerGroup.Start, task: suspend () -> Unit) {
-        val continuation = task.createCoroutine(
+        val continuation = task.createCoroutineUnintercepted(
             object : Continuation<Unit> {
                 override val context: CoroutineContext
                     get() = EmptyCoroutineContext
