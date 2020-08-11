@@ -4,8 +4,8 @@ import kotlin.reflect.KProperty
 import kotlin.properties.Delegates
 
 fun testDelegator() {
-    var x: Boolean by LocalFreezableVar(true)
-    var y by LocalFreezableVar("")
+    <!UNUSED_VARIABLE!>var x: Boolean by LocalFreezableVar(true)<!>
+    <!UNUSED_VARIABLE!>var y by LocalFreezableVar("")<!>
 }
 
 class LocalFreezableVar<T>(private var value: T)  {
@@ -17,7 +17,6 @@ class LocalFreezableVar<T>(private var value: T)  {
 }
 
 
-<!REDECLARATION!>class C<!>
 operator fun C.plus(a: Any): C = this
 operator fun C.plusAssign(a: Any) {}
 
@@ -34,31 +33,32 @@ fun testOperatorAssignment() {
 
 
 fun destructuringDeclaration() {
-    <!CAN_BE_VAL!>var<!> (v1, v2) = getPair()
+    <!CAN_BE_VAL!>var<!> (v1, <!UNUSED_VARIABLE!>v2<!>) = getPair()
     print(v1)
 
-    var (v3, v4) = getPair()
+    var (v3, <!VARIABLE_NEVER_READ!>v4<!>) = getPair()
     print(v3)
     v4 = ""
 
-    var (v5, v6) = getPair()
+    var (<!VARIABLE_NEVER_READ!>v5<!>, <!UNUSED_VARIABLE!>v6<!>) = getPair()
     v5 = 1
 
-    var (v7, v8) = getPair()
+    var (<!VARIABLE_NEVER_READ!>v7<!>, <!VARIABLE_NEVER_READ!>v8<!>) = getPair()
     v7 = 2
     v8 = "42"
 
-    val (a, b, c) = Triple(1, 1, 1)
+    val (<!UNUSED_VARIABLE!>a<!>, <!UNUSED_VARIABLE!>b<!>, <!UNUSED_VARIABLE!>c<!>) = Triple(1, 1, 1)
 
-    <!CAN_BE_VAL!>var<!> (x, y, z) = Triple(1, 1, 1)
+    var (<!UNUSED_VARIABLE!>x<!>, <!UNUSED_VARIABLE!>y<!>, <!UNUSED_VARIABLE!>z<!>) = Triple(1, 1, 1)
 }
 
 fun stackOverflowBug() {
-    <!CAN_BE_VAL!>var<!> a: Int
+    <!VARIABLE_NEVER_READ!><!CAN_BE_VAL!>var<!> a: Int<!>
     a = 1
     for (i in 1..10)
         print(i)
 }
+
 
 fun smth(flag: Boolean) {
     var a = 1
@@ -86,7 +86,7 @@ fun getPair(): Pair<Int, String> = Pair(1, "1")
 fun listReceiver(p: List<String>) {}
 
 fun withInitializer() {
-    var v1 = 1
+    <!VARIABLE_NEVER_READ!>var v1 = 1<!>
     var v2 = 2
     <!CAN_BE_VAL!>var<!> v3 = 3
     v1 = 1
@@ -102,11 +102,10 @@ fun test() {
 }
 
 fun foo() {
-    <!CAN_BE_VAL!>var<!> a: Int
+    <!VARIABLE_NEVER_READ!><!CAN_BE_VAL!>var<!> a: Int<!>
     val bool = true
-    val b: String
-
     if (bool) a = 4 else a = 42
+    <!UNUSED_VARIABLE!>val b: String<!>
 
     bool = false
 }
@@ -117,7 +116,7 @@ fun cycles() {
         a--
     }
 
-    val b: Int
+    <!VARIABLE_NEVER_READ!>val b: Int<!>
     while (a < 10) {
         a++
         b = a
@@ -125,7 +124,7 @@ fun cycles() {
 }
 
 fun assignedTwice(p: Int) {
-    var v: Int
+    <!VARIABLE_NEVER_READ!>var v: Int<!>
     v = 0
     if (p > 0) v = 1
 }
@@ -135,8 +134,7 @@ fun main(args: Array<String?>) {
 
     if (args.size == 1) {
         a = args[0]
-    }
-    else {
+    } else {
         a  = args.toString()
     }
 
@@ -146,7 +144,7 @@ fun main(args: Array<String?>) {
 fun run(f: () -> Unit) = f()
 
 fun lambda() {
-    var a: Int
+    <!VARIABLE_NEVER_READ!>var a: Int<!>
     a = 10
 
     run {
@@ -155,7 +153,7 @@ fun lambda() {
 }
 
 fun lambdaInitialization() {
-    <!CAN_BE_VAL!>var<!> a: Int
+    <!VARIABLE_NEVER_READ!><!CAN_BE_VAL!>var<!> a: Int<!>
 
     run {
         a = 20
@@ -172,16 +170,16 @@ fun notAssignedWhenNotUsed(p: Int) {
 
 var global = 1
 
-<!REDECLARATION!>class C {
+class C {
     var field = 2
 
     fun foo() {
         print(field)
         print(global)
     }
-}<!>
+}
 
 fun withDelegate() {
-    var s: String by Delegates.notNull()
+    <!VARIABLE_NEVER_READ!>var s: String by Delegates.notNull()<!>
     s = ""
 }

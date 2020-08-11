@@ -324,15 +324,23 @@ public class ExtendedFirDiagnosticsTestGenerated extends AbstractExtendedFirDiag
             KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/fir/analysis-tests/testData/extendedCheckers/unused"), Pattern.compile("^([^.]+)\\.kt$"), null, true);
         }
 
+        @TestMetadata("classProperty.kt")
+        public void testClassProperty() throws Exception {
+            runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/classProperty.kt");
+        }
+
+        @TestMetadata("lambda.kt")
+        public void testLambda() throws Exception {
+            runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/lambda.kt");
+        }
+
         @TestMetadata("localVariable.kt")
         public void testLocalVariable() throws Exception {
             runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/localVariable.kt");
         }
-
         @TestMetadata("UnusedUnaryOperator.kt")
         public void testUnusedUnaryOperator() throws Exception {
             runTest("compiler/fir/analysis-tests/testData/extendedCheckers/unused/UnusedUnaryOperator.kt");
         }
     }
 }
-

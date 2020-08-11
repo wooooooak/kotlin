@@ -1,13 +1,13 @@
 import kotlin.reflect.KProperty
 
 fun foo(v: Int) {
-    <!UNUSED_VAR_OR_VAL!>val<!> d: Int by Delegate
-    <!UNUSED_VAR_OR_VAL!>val<!> a: Int
-    <!UNUSED_VAR_OR_VAL!>val<!> b = 1
+    <!UNUSED_VARIABLE!>val d: Int by Delegate<!>
+    <!UNUSED_VARIABLE!>val a: Int<!>
+    <!UNUSED_VARIABLE!>val b = 1<!>
     val c = 2
 
-    @Anno
-    <!UNUSED_VAR_OR_VAL!>val<!> e: Int
+    <!UNUSED_VARIABLE!>@Anno
+    val e: Int<!>
 
     foo(c)
 }
@@ -19,3 +19,4 @@ object Delegate {
 
 @Target(AnnotationTarget.LOCAL_VARIABLE)
 annotation class Anno
+

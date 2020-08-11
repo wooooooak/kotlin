@@ -21,6 +21,6 @@ object ExtendedDeclarationCheckers : DeclarationCheckers() {
     )
 
     override val variableAssignmentCfaBasedCheckers: List<AbstractFirCfaPropertyAssignmentChecker> = listOf(
-        VariableAssignmentChecker
+        //VariableAssignmentChecker
     )
 }
