@@ -22265,6 +22265,11 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
                 runTest("compiler/testData/codegen/box/ranges/contains/evaluationOrderForDownToReversed.kt");
             }
 
+            @TestMetadata("evaluationOrderForNullableArgument.kt")
+            public void testEvaluationOrderForNullableArgument() throws Exception {
+                runTest("compiler/testData/codegen/box/ranges/contains/evaluationOrderForNullableArgument.kt");
+            }
+
             @TestMetadata("evaluationOrderForRangeLiteral.kt")
             public void testEvaluationOrderForRangeLiteral() throws Exception {
                 runTest("compiler/testData/codegen/box/ranges/contains/evaluationOrderForRangeLiteral.kt");

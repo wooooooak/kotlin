@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.ir.expressions.impl.IrConstImpl
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.getClass
 import org.jetbrains.kotlin.ir.types.isNothing
+import org.jetbrains.kotlin.ir.types.makeNotNull
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.name.Name
@@ -101,8 +102,7 @@ internal fun DeclarationIrBuilder.createTemporaryVariableIfNecessary(
     }
 
 internal fun IrExpression.castIfNecessary(targetClass: IrClass) =
-    // This expression's type could be Nothing from an exception throw.
-    if (type == targetClass.defaultType || type.isNothing()) {
+    if (!isCastingNecessary(targetClass)) {
         this
     } else {
         val numberCastFunctionName = Name.identifier("to${targetClass.name.asString()}")
@@ -117,3 +117,7 @@ internal fun IrExpression.castIfNecessary(targetClass: IrClass) =
             valueArgumentsCount = 0
         ).apply { dispatchReceiver = this@castIfNecessary }
     }
+
+internal fun IrExpression.isCastingNecessary(targetClass: IrClass) =
+    // This expression's type could be Nothing from an exception throw, or it could be Nothing? (e.g., constant null).
+    type != targetClass.defaultType && !type.makeNotNull().isNothing()

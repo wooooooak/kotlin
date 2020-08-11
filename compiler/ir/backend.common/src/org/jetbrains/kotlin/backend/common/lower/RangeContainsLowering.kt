@@ -90,22 +90,15 @@ private class Transformer(
             return super.visitCall(expression)
         }
 
+        // The HeaderInfoBuilder extracts information (e.g., lower/upper bounds, direction) from the range expression, which is the
+        // receiver for the contains() call.
         val receiver = expression.dispatchReceiver ?: expression.extensionReceiver!!
         val headerInfo = receiver.accept(headerInfoBuilder, expression)
             ?: return super.visitCall(expression)  // The receiver is not a supported range (or not a range at all).
 
         val argument = expression.getValueArgument(0)!!
-
         val builder = context.createIrBuilder(getScopeOwnerSymbol(), expression.startOffset, expression.endOffset)
-
-        return builder.run {
-            var replacement = buildContainsComparison(headerInfo, argument, origin)
-                ?: return super.visitCall(expression)  // The call cannot be lowered.
-            if (argument.type.isNullable()) {
-                replacement = irIfNull(context.irBuiltIns.booleanType, argument, irFalse(), replacement)
-            }
-            replacement
-        }
+        return builder.buildContainsComparison(headerInfo, argument, origin) ?: super.visitCall(expression)  // The call cannot be lowered.
     }
 
     private fun DeclarationIrBuilder.buildContainsComparison(
@@ -200,12 +193,7 @@ private class Transformer(
 
         // The transformed expression is `A <= X && X <= B`. If the argument expression X can have side effects, it must be stored in a
         // temp variable before the expression so it does not get evaluated twice. If A and/or B can have side effects, they must also be
-        // stored in temp variables BEFORE X.
-        //
-        // On the other hand, if X can NOT have side effects, it does NOT need to be stored in a temp variable. However, because of
-        // short-circuit evaluation of &&, if A and/or B can have side effects, we need to make sure they get evaluated regardless.
-        // We accomplish this be storing it in a temp variable (the alternative is to duplicate A/B in a block in the "else" branch before
-        // returning false). We can also switch the order of the clauses to ensure evaluation. See below for the expected outcomes:
+        // stored in temp variables BEFORE X. See below for the expected outcomes:
         //
         //   =======|=======|=======|======================|================|=======================
         //   Can have side effects? | (Note B is "upper")  |                |
@@ -227,28 +215,15 @@ private class Transformer(
         // *   - Order does not matter.
         // **  - Bound with side effect is stored in a temp variable to ensure evaluation even if right side is short-circuited.
         // *** - Bound with side effect is on left side of && to make sure it always gets evaluated.
+        //
+        // In addition, there are stdlib extension functions that return false for null arguments, e.g., IntRange.contains(Int?). If the
+        // argument type is nullable, then we will need to make sure the bounds expressions with side effects get evaluated even if the
+        // argument is null and we never get to evaluate the `A <= X && X <= B` comparison. Hence we create temp variables for the bounds.
 
-        var arg = argument
-        val builtIns = context.irBuiltIns
-        val comparisonClass = if (isNumericRange) {
-            computeComparisonClass(this@Transformer.context.ir.symbols, lower, upper, arg) ?: return null
-        } else {
-            assert(headerInfo is ComparableRangeInfo)
-            this@Transformer.context.ir.symbols.comparable.owner
-        }
-
-        if (isNumericRange) {
-            // Convert argument to the "widest" common numeric type for comparisons.
-            // Note that we do the same for the bounds below. If it is necessary to convert the argument, it's better to do it once and
-            // store in a temp variable, since it is used twice in the transformed expression (bounds are only used once).
-            arg = arg.castIfNecessary(comparisonClass)
-        }
-
-        val (argVar, argExpression) = createTemporaryVariableIfNecessary(arg, "containsArg")
         var lowerExpression: IrExpression
         var upperExpression: IrExpression
         val useLowerClauseOnLeftSide: Boolean
-        if (argVar != null) {
+        if (argument.canHaveSideEffects || argument.type.isNullable()) {
             val (lowerVar, tmpLowerExpression) = createTemporaryVariableIfNecessary(lower, "containsLower")
             val (upperVar, tmpUpperExpression) = createTemporaryVariableIfNecessary(upper, "containsUpper")
             if (shouldUpperComeFirst) {
@@ -280,11 +255,50 @@ private class Transformer(
             upperExpression = upper
             useLowerClauseOnLeftSide = true
         }
-        additionalStatements.addIfNotNull(argVar)
 
-        if (isNumericRange) {
+        // Convert argument and bounds to the "widest" common numeric type for comparisons.
+        // If it is necessary to convert the argument, it's better to do it once and store in a temp variable, since it is used twice in
+        // the transformed expression (`A <= X && X <= B`). No variable will be created if conversion is not necessary.
+        val builtIns = context.irBuiltIns
+        val comparisonClass = if (isNumericRange) {
+            computeComparisonClass(this@Transformer.context.ir.symbols, lower.type, upper.type, argument.type.makeNotNull()) ?: return null
+        } else {
+            assert(headerInfo is ComparableRangeInfo)
+            this@Transformer.context.ir.symbols.comparable.owner
+        }
+        val (argVar, argExpression) = if (isNumericRange) {
             lowerExpression = lowerExpression.castIfNecessary(comparisonClass)
             upperExpression = upperExpression.castIfNecessary(comparisonClass)
+            if (argument.type.isNullable()) {
+                // We cannot convert a nullable argument at variable creation; we will only convert it after we have checked that it is
+                // not null. The variable is mutable for re-assignment.
+                createTemporaryVariableIfNecessary(argument, "containsArg", isMutable = true)
+            } else {
+                createTemporaryVariableIfNecessary(argument.castIfNecessary(comparisonClass), "containsArg")
+            }
+        } else {
+            createTemporaryVariableIfNecessary(argument, "containsArg")
+        }
+        additionalStatements.addIfNotNull(argVar)
+
+        var argConversion: IrStatement? = null
+        val finalArgExpression = if (isNumericRange && argument.type.isNullable() && argument.isCastingNecessary(comparisonClass)) {
+            // The argument is nullable and we need to convert it after we have checked that it is not null.
+            if (argVar == null) {
+                // If we didn't create a variable for the argument before (i.e., because it cannot have side effects), one will be
+                // created here.
+                val (tmpArgCastedVar, argCastedExpression) = createTemporaryVariableIfNecessary(
+                    argExpression.castIfNecessary(comparisonClass), "containsArgCasted"
+                )
+                argConversion = tmpArgCastedVar
+                argCastedExpression
+            } else {
+                // Re-use the argument variable.
+                argConversion = irSetVar(argVar.symbol, irGet(argVar).castIfNecessary(comparisonClass))
+                irGet(argVar)
+            }
+        } else {
+            argExpression
         }
 
         val lessOrEqualFun = builtIns.lessOrEqualFunByOperandType.getValue(if (useCompareTo) builtIns.intClass else comparisonClass.symbol)
@@ -302,27 +316,27 @@ private class Transformer(
             irCall(lessOrEqualFun).apply {
                 putValueArgument(0, irInt(0))
                 putValueArgument(1, irCall(compareToFun).apply {
-                    dispatchReceiver = argExpression
+                    dispatchReceiver = finalArgExpression
                     putValueArgument(0, lowerExpression)
                 })
             }
         } else {
             irCall(lessOrEqualFun).apply {
                 putValueArgument(0, lowerExpression)
-                putValueArgument(1, argExpression)
+                putValueArgument(1, finalArgExpression)
             }
         }
         val upperClause = if (useCompareTo) {
             irCall(lessOrEqualFun).apply {
                 putValueArgument(0, irCall(compareToFun).apply {
-                    dispatchReceiver = argExpression.deepCopyWithSymbols()
+                    dispatchReceiver = finalArgExpression.deepCopyWithSymbols()
                     putValueArgument(0, upperExpression)
                 })
                 putValueArgument(1, irInt(0))
             }
         } else {
             irCall(lessOrEqualFun).apply {
-                putValueArgument(0, argExpression.deepCopyWithSymbols())
+                putValueArgument(0, finalArgExpression.deepCopyWithSymbols())
                 putValueArgument(1, upperExpression)
             }
         }
@@ -341,26 +355,53 @@ private class Transformer(
                 it
             }
         }
-        return if (additionalStatements.isEmpty()) {
+
+        // Build the final lowered expression, including a check for null for nullable arguments. A contains() call such as
+        // `X() in A()..B()` would be transformed into something like this:
+        //
+        //   val containsLower = A()
+        //   val containsUpper = B()
+        //   var containsArg = X()  // Type is something like Byte?
+        //   if (containsArg == null) {
+        //     false
+        //   } else {
+        //     containsArg = containsArg.toInt()  // Assuming A()..B() is an IntRange
+        //     containsLower <= containsArg && containsArg <= containsUpper
+        //   }
+        val containsWithArgConversion = if (argConversion != null) {
+            irBlock {
+                +argConversion
+                +contains
+            }
+        } else {
             contains
+        }
+        val containsWithNullCheck = if (argument.type.isNullable()) {
+            irIfNull(context.irBuiltIns.booleanType, argExpression.deepCopyWithSymbols(), irFalse(), containsWithArgConversion)
+        } else {
+            containsWithArgConversion
+        }
+
+        return if (additionalStatements.isEmpty()) {
+            containsWithNullCheck
         } else {
             irBlock {
                 for (stmt in additionalStatements) {
                     +stmt
                 }
-                +contains
+                +containsWithNullCheck
             }
         }
     }
 
     private fun computeComparisonClass(
         symbols: Symbols<CommonBackendContext>,
-        lower: IrExpression,
-        upper: IrExpression,
-        argument: IrExpression
+        lowerType: IrType,
+        upperType: IrType,
+        argumentType: IrType
     ): IrClass? {
-        val commonBoundType = leastCommonPrimitiveNumericType(symbols, lower.type, upper.type) ?: return null
-        return leastCommonPrimitiveNumericType(symbols, argument.type, commonBoundType)?.getClass()
+        val commonBoundType = leastCommonPrimitiveNumericType(symbols, lowerType, upperType) ?: return null
+        return leastCommonPrimitiveNumericType(symbols, argumentType, commonBoundType)?.getClass()
     }
 
     private fun leastCommonPrimitiveNumericType(symbols: Symbols<CommonBackendContext>, t1: IrType, t2: IrType): IrType? {
