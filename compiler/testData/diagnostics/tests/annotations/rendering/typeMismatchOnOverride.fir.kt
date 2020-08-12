@@ -22,5 +22,5 @@ interface B : A {
 }
 
 interface C : A {
-    override var p2: <!PROPERTY_TYPE_MISMATCH_ON_OVERRIDE!>Int<!>
+    override var p2: <!VAR_TYPE_MISMATCH_ON_OVERRIDE!>Int<!>
 }

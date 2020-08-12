@@ -214,11 +214,19 @@ object FirTypeMismatchOnOverrideChecker : FirMemberDeclarationChecker() {
         )
 
         restriction?.let {
-            reporter.reportMismatchOnProperty(
-                property.returnTypeRef.source,
-                property.returnTypeRef.coneType.toString(),
-                it
-            )
+            if (property.isVar) {
+                reporter.reportMismatchOnVariable(
+                    property.returnTypeRef.source,
+                    property.returnTypeRef.coneType.toString(),
+                    it
+                )
+            } else {
+                reporter.reportMismatchOnProperty(
+                    property.returnTypeRef.source,
+                    property.returnTypeRef.coneType.toString(),
+                    it
+                )
+            }
         }
     }
 
@@ -228,5 +236,9 @@ object FirTypeMismatchOnOverrideChecker : FirMemberDeclarationChecker() {
 
     private fun DiagnosticReporter.reportMismatchOnProperty(source: FirSourceElement?, type: String, declaration: FirMemberDeclaration) {
         source?.let { report(FirErrors.PROPERTY_TYPE_MISMATCH_ON_OVERRIDE.on(it, type, declaration)) }
+    }
+
+    private fun DiagnosticReporter.reportMismatchOnVariable(source: FirSourceElement?, type: String, declaration: FirMemberDeclaration) {
+        source?.let { report(FirErrors.VAR_TYPE_MISMATCH_ON_OVERRIDE.on(it, type, declaration)) }
     }
 }

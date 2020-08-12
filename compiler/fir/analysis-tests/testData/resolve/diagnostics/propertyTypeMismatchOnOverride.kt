@@ -7,11 +7,11 @@ open class B : A {
 }
 
 class C() : A() {
-    override var test: <!PROPERTY_TYPE_MISMATCH_ON_OVERRIDE!>String<!> = "Test"
+    override var test: <!VAR_TYPE_MISMATCH_ON_OVERRIDE!>String<!> = "Test"
 }
 
 open class D() : B() {
-    override var test: <!PROPERTY_TYPE_MISMATCH_ON_OVERRIDE!>Char<!> = '\n'
+    override var test: <!VAR_TYPE_MISMATCH_ON_OVERRIDE!>Char<!> = '\n'
 }
 
 class E<T : Double>(val value: T) : B() {
@@ -31,5 +31,5 @@ class H<E : String>(val balue: E) : <!INAPPLICABLE_CANDIDATE!>F<E><!>(balue) {
 }
 
 class M<E : String>(val balue: E) : F<Double>(3.14) {
-    override var rest: <!PROPERTY_TYPE_MISMATCH_ON_OVERRIDE!>E<!> = balue
+    override var rest: <!VAR_TYPE_MISMATCH_ON_OVERRIDE!>E<!> = balue
 }
