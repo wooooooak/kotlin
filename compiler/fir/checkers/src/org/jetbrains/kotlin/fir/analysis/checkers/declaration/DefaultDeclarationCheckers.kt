@@ -29,6 +29,7 @@ object CommonDeclarationCheckers : DeclarationCheckers() {
         FirSupertypeInitializedWithoutPrimaryConstructor,
         FirDelegationSuperCallInEnumConstructorChecker,
         FirPrimaryConstructorRequiredForDataClassChecker,
+        FirTypeMismatchOnOverrideChecker,
     )
 
     override val regularClassCheckers: List<FirRegularClassChecker> = listOf(
