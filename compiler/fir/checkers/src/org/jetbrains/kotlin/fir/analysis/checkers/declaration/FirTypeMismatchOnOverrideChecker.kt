@@ -11,7 +11,6 @@ import org.jetbrains.kotlin.fir.analysis.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirErrors
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.resolve.substitution.ConeSubstitutor
-import org.jetbrains.kotlin.fir.resolve.substitution.chain
 import org.jetbrains.kotlin.fir.resolve.substitution.substitutorByMap
 import org.jetbrains.kotlin.fir.resolve.toSymbol
 import org.jetbrains.kotlin.fir.scopes.FirTypeScope
@@ -78,8 +77,9 @@ object FirTypeMismatchOnOverrideChecker : FirMemberDeclarationChecker() {
 
     private fun FirRegularClass.substituteAllSupertypeParameters(context: CheckerContext): ConeSubstitutor {
         val allSupertypesMapping = mutableMapOf<FirTypeParameterSymbol, ConeKotlinType>()
+        val remapper = mutableMapOf<ConeKotlinType, ConeKotlinType>()
 
-        fun FirRegularClass.collectSupertypes(substitutor: ConeSubstitutor) {
+        fun FirRegularClass.collectSupertypes() {
             for (it in superTypeRefs) {
                 val fir = it.coneType.safeAs<ConeClassLikeType>()?.lookupTag?.toSymbol(context.session)
                     ?.fir.safeAs<FirRegularClass>()
@@ -89,22 +89,21 @@ object FirTypeMismatchOnOverrideChecker : FirMemberDeclarationChecker() {
                     continue
                 }
 
-                val supertypesMapping = mutableMapOf<FirTypeParameterSymbol, ConeKotlinType>()
-
                 for (that in fir.typeParameters.indices) {
                     val proto = fir.typeParameters[that].symbol
                     val actual = it.coneType.typeArguments[that].safeAs<ConeKotlinType>()
+                        ?.lowerBoundIfFlexible()
                         ?: continue
-                    supertypesMapping[proto] = substitutor.substituteOrSelf(actual)
+                    val value = remapper.getOrDefault(actual, actual)
+                    remapper[proto.fir.toConeType()] = value
+                    allSupertypesMapping[proto] = value
                 }
 
-                allSupertypesMapping += supertypesMapping
-                val innerSubstitutor = substitutorByMap(supertypesMapping).chain(substitutor)
-                fir.collectSupertypes(innerSubstitutor)
+                fir.collectSupertypes()
             }
         }
 
-        collectSupertypes(ConeSubstitutor.Empty)
+        collectSupertypes()
         return substitutorByMap(allSupertypesMapping)
     }
 
