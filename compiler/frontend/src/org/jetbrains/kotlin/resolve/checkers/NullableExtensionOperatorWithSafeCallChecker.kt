@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.resolve.checkers
 
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.diagnostics.PsiDiagnosticUtils
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
@@ -42,6 +43,8 @@ object NullableExtensionOperatorWithSafeCallChecker : CallChecker {
 
         // It's an operator call, not a regular one
         if (callElement is KtCallExpression && name.identifier == (callElement.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()) return
+
+        error("$name at ${callElement.containingFile}:${PsiDiagnosticUtils.atLocation(callElement)}")
 
         context.trace.report(Errors.NULLABLE_EXTENSION_OPERATOR_WITH_SAFE_CALL_RECEIVER.on(reportOn))
     }
