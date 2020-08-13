@@ -83,6 +83,7 @@ object LowLevelFirApiFacade {
             body = builtFunction.body
             symbol = builtFunction.symbol as FirNamedFunctionSymbol
             resolvePhase = minOf(originalFunction.resolvePhase, FirResolvePhase.DECLARATIONS)
+            this.session = state.firSession
         }
 
         val function = frankensteinFunction.apply {
