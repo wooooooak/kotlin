@@ -42,7 +42,11 @@ private object KotlinHighLevelApiContributor : CompletionProvider<CompletionPara
         val sessionForCompletion = originalSession.createContextDependentCopy()
         val scopeProvider = sessionForCompletion.scopeProvider
 
-        val (implicitScopes, implicitReceivers) = scopeProvider.getScopeContextForPosition(originalFile, nameExpression)
+        val (implicitScopes, implicitReceivers) = scopeProvider.getScopeContextForPosition(
+            originalFile,
+            parameters.originalPosition,
+            nameExpression
+        )
 
         val typeOfPossibleReceiver = possibleReceiver?.let { sessionForCompletion.getKtExpressionType(it) }
         val possibleReceiverScope = typeOfPossibleReceiver?.let { sessionForCompletion.scopeProvider.getScopeForType(it) }
