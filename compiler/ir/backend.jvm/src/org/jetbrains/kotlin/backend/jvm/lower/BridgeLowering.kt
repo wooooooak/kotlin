@@ -37,7 +37,6 @@ import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.util.OperatorNameConventions
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
-import org.jetbrains.kotlin.utils.getOrPutNullable
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.commons.Method
 
@@ -543,7 +542,6 @@ internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass
 
     internal class BridgeLoweringCache(private val context: JvmBackendContext) {
         private val specialBridgeMethods = SpecialBridgeMethods(context)
-        private val specialBridgeCache = hashMapOf<IrSimpleFunctionSymbol, SpecialBridge?>()
         private val signatureCache = hashMapOf<IrFunctionSymbol, Method>()
 
         fun computeJvmMethod(function: IrFunction): Method =
@@ -558,49 +556,47 @@ internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass
                 if (function.name !in specialBridgeMethods.specialMethodNames) return null
             }
 
-            return specialBridgeCache.getOrPutNullable(function.symbol) {
-                val specialMethodInfo = specialBridgeMethods.getSpecialMethodInfo(function)
-                if (specialMethodInfo != null)
-                    return SpecialBridge(
-                        function, computeJvmMethod(function), specialMethodInfo.needsGenericSignature, methodInfo = specialMethodInfo
-                    )
+            val specialMethodInfo = specialBridgeMethods.getSpecialMethodInfo(function)
+            if (specialMethodInfo != null)
+                return SpecialBridge(
+                    function, computeJvmMethod(function), specialMethodInfo.needsGenericSignature, methodInfo = specialMethodInfo
+                )
 
-                val specialBuiltInInfo = specialBridgeMethods.getBuiltInWithDifferentJvmName(function)
-                if (specialBuiltInInfo != null)
-                    return SpecialBridge(function, computeJvmMethod(function), specialBuiltInInfo.needsGenericSignature)
+            val specialBuiltInInfo = specialBridgeMethods.getBuiltInWithDifferentJvmName(function)
+            if (specialBuiltInInfo != null)
+                return SpecialBridge(function, computeJvmMethod(function), specialBuiltInInfo.needsGenericSignature)
 
-                for (overridden in function.overriddenSymbols) {
-                    val specialBridge = computeSpecialBridge(overridden.owner) ?: continue
-                    if (!specialBridge.needsGenericSignature) return specialBridge
+            for (overridden in function.overriddenSymbols) {
+                val specialBridge = computeSpecialBridge(overridden.owner) ?: continue
+                if (!specialBridge.needsGenericSignature) return specialBridge
 
-                    // Compute the substituted signature.
-                    val erasedParameterCount = specialBridge.methodInfo?.argumentsToCheck ?: 0
-                    val substitutedParameterTypes = function.valueParameters.mapIndexed { index, param ->
-                        if (index < erasedParameterCount) context.irBuiltIns.anyNType else param.type
-                    }
-
-                    val substitutedOverride = context.irFactory.buildFun {
-                        updateFrom(specialBridge.overridden)
-                        name = Name.identifier(specialBridge.signature.name)
-                        returnType = function.returnType
-                    }.apply {
-                        // All existing special bridges only have value parameter types.
-                        valueParameters = function.valueParameters.zip(substitutedParameterTypes).map { (param, type) ->
-                            param.copyTo(this, IrDeclarationOrigin.BRIDGE, type = type)
-                        }
-                        overriddenSymbols = listOf(specialBridge.overridden.symbol)
-                        parent = function.parent
-                    }
-
-                    return specialBridge.copy(
-                        signature = computeJvmMethod(substitutedOverride),
-                        substitutedParameterTypes = substitutedParameterTypes,
-                        substitutedReturnType = function.returnType
-                    )
+                // Compute the substituted signature.
+                val erasedParameterCount = specialBridge.methodInfo?.argumentsToCheck ?: 0
+                val substitutedParameterTypes = function.valueParameters.mapIndexed { index, param ->
+                    if (index < erasedParameterCount) context.irBuiltIns.anyNType else param.type
                 }
 
-                null
+                val substitutedOverride = context.irFactory.buildFun {
+                    updateFrom(specialBridge.overridden)
+                    name = Name.identifier(specialBridge.signature.name)
+                    returnType = function.returnType
+                }.apply {
+                    // All existing special bridges only have value parameter types.
+                    valueParameters = function.valueParameters.zip(substitutedParameterTypes).map { (param, type) ->
+                        param.copyTo(this, IrDeclarationOrigin.BRIDGE, type = type)
+                    }
+                    overriddenSymbols = listOf(specialBridge.overridden.symbol)
+                    parent = function.parent
+                }
+
+                return specialBridge.copy(
+                    signature = computeJvmMethod(substitutedOverride),
+                    substitutedParameterTypes = substitutedParameterTypes,
+                    substitutedReturnType = function.returnType
+                )
             }
+
+            return null
         }
     }
 }
