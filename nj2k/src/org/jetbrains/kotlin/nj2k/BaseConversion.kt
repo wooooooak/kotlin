@@ -25,6 +25,6 @@ interface SequentialBaseConversion : Conversion {
     fun runConversion(treeRoot: JKTreeElement, context: NewJ2kConverterContext): Boolean
 
     override fun runConversion(treeRoots: Sequence<JKTreeElement>, context: NewJ2kConverterContext): Boolean {
-        return treeRoots.asSequence().map { runConversion(it, context) }.max() ?: false
+        return treeRoots.asSequence().map { runConversion(it, context) }.maxOrNull() ?: false
     }
 }

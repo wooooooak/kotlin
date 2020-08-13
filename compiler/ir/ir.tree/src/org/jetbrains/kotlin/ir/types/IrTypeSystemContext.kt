@@ -252,7 +252,7 @@ interface IrTypeSystemContext : TypeSystemContext, TypeSystemCommonSuperTypesCon
     override fun SimpleTypeMarker.typeDepth(): Int {
         val maxInArguments = (this as IrSimpleType).arguments.asSequence().map {
             if (it is IrStarProjection) 1 else it.getType().typeDepth()
-        }.max() ?: 0
+        }.maxOrNull() ?: 0
 
         return maxInArguments + 1
     }

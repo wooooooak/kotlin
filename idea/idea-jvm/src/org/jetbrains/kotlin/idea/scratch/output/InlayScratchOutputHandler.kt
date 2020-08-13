@@ -107,7 +107,7 @@ class InlayScratchOutputHandler(
         return file.getExpressions()
             .flatMap { it.lineStart..it.lineEnd }
             .map { doc.getLineEndOffset(it) - doc.getLineStartOffset(it) }
-            .max() ?: 0
+            .maxOrNull() ?: 0
     }
 
     private fun clearInlays(editor: TextEditor) {

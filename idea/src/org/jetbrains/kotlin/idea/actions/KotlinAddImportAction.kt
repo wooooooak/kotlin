@@ -71,7 +71,7 @@ internal fun createSingleImportAction(
     val prioritizer = Prioritizer(element.containingKtFile)
     val variants = fqNames.mapNotNull { fqName ->
         val sameFqNameDescriptors = file.resolveImportReference(fqName)
-        val priority = sameFqNameDescriptors.map { prioritizer.priority(it, file.languageVersionSettings) }.min() ?: return@mapNotNull null
+        val priority = sameFqNameDescriptors.map { prioritizer.priority(it, file.languageVersionSettings) }.minOrNull() ?: return@mapNotNull null
         Prioritizer.VariantWithPriority(SingleImportVariant(fqName, sameFqNameDescriptors), priority)
     }.sortedBy { it.priority }.map { it.variant }
 
@@ -313,7 +313,7 @@ private class DescriptorGroupPrioritizer(file: KtFile) {
         val descriptors: List<DeclarationDescriptor>,
         languageVersionSettings: LanguageVersionSettings
     ) : Comparable<Priority> {
-        val ownDescriptorsPriority = descriptors.asSequence().map { prioritizer.priority(it, languageVersionSettings) }.max()!!
+        val ownDescriptorsPriority = descriptors.asSequence().map { prioritizer.priority(it, languageVersionSettings) }.maxOrNull()!!
 
         override fun compareTo(other: Priority): Int {
             val c1 = ownDescriptorsPriority.compareTo(other.ownDescriptorsPriority)
@@ -356,7 +356,7 @@ private class SingleImportVariant(
     override val descriptorsToImport: Collection<DeclarationDescriptor>
         get() = listOf(
             descriptors.singleOrNull()
-                ?: descriptors.minBy { if (it is ClassDescriptor) 0 else 1 }
+                ?: descriptors.minByOrNull { if (it is ClassDescriptor) 0 else 1 }
                 ?: error("we create the class with not-empty descriptors always")
         )
 

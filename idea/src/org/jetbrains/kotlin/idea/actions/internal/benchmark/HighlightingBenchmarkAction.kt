@@ -194,7 +194,7 @@ class HighlightingBenchmarkAction : AnAction() {
             .mapNotNull { highlighter ->
                 val info = highlighter.errorStripeTooltip as? HighlightInfo ?: return@mapNotNull null
                 info.severity
-            }.maxWith(Comparator { o1, o2 -> severityRegistrar.compare(o1, o2) })
+            }.maxWithOrNull(Comparator { o1, o2 -> severityRegistrar.compare(o1, o2) })
         return Result.Success(location, lines, analysisTime, maxSeverity?.myName ?: "clean")
     }
 

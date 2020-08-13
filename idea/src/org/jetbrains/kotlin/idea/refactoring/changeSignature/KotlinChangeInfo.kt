@@ -372,9 +372,9 @@ open class KotlinChangeInfo(
             val currentSignatures = initCurrentSignatures(currentPsiMethods)
             return originalSignatures.associateBy({ it.method }) { originalSignature ->
                 var constrainedCurrentSignatures = currentSignatures.map { it.constrainBy(originalSignature) }
-                val maxMandatoryCount = constrainedCurrentSignatures.maxBy { it.mandatoryParams.size }!!.mandatoryParams.size
+                val maxMandatoryCount = constrainedCurrentSignatures.maxByOrNull { it.mandatoryParams.size }!!.mandatoryParams.size
                 constrainedCurrentSignatures = constrainedCurrentSignatures.filter { it.mandatoryParams.size == maxMandatoryCount }
-                val maxDefaultCount = constrainedCurrentSignatures.maxBy { it.defaultValues.size }!!.defaultValues.size
+                val maxDefaultCount = constrainedCurrentSignatures.maxByOrNull { it.defaultValues.size }!!.defaultValues.size
                 constrainedCurrentSignatures.last { it.defaultValues.size == maxDefaultCount }.method
             }
         }

@@ -101,7 +101,7 @@ class KotlinCopyPasteReferenceProcessor : CopyPastePostProcessor<BasicKotlinRefe
 
         val packageName = file.packageDirective?.fqName?.asString() ?: ""
         val imports = file.importDirectives.map { it.text }
-        val endOfImportsOffset = file.importDirectives.map { it.endOffset }.max() ?: file.packageDirective?.endOffset ?: 0
+        val endOfImportsOffset = file.importDirectives.map { it.endOffset }.maxOrNull() ?: file.packageDirective?.endOffset ?: 0
         val offsetDelta = if (startOffsets.any { it <= endOfImportsOffset }) 0 else endOfImportsOffset
         val text = file.text.substring(offsetDelta)
         val ranges = startOffsets.indices.map { TextRange(startOffsets[it], endOffsets[it]) }

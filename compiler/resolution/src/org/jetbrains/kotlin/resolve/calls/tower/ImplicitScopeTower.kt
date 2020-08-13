@@ -86,8 +86,7 @@ class CandidateWithBoundDispatchReceiver(
 )
 
 fun getResultApplicability(diagnostics: Collection<KotlinCallDiagnostic>) =
-    diagnostics.maxBy { it.candidateApplicability }?.candidateApplicability
-            ?: RESOLVED
+    diagnostics.maxByOrNull { it.candidateApplicability }?.candidateApplicability ?: RESOLVED
 
 enum class ResolutionCandidateApplicability {
     RESOLVED, // call success or has uncompleted inference or in other words possible successful candidate

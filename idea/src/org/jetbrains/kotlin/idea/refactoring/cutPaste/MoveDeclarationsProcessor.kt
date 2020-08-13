@@ -93,8 +93,8 @@ class MoveDeclarationsProcessor(
 
         // temporary revert imports to the state before they have been changed
         val importsSubstitution = if (sourcePsiFile.importDirectives.size != imports.size) {
-            val startOffset = sourcePsiFile.importDirectives.map { it.startOffset }.min() ?: 0
-            val endOffset = sourcePsiFile.importDirectives.map { it.endOffset }.min() ?: 0
+            val startOffset = sourcePsiFile.importDirectives.map { it.startOffset }.minOrNull() ?: 0
+            val endOffset = sourcePsiFile.importDirectives.map { it.endOffset }.minOrNull() ?: 0
             val importsDeclarationsText = sourceDocument.getText(TextRange(startOffset, endOffset))
 
             val tempImportsText = imports.joinToString(separator = "\n")

@@ -79,9 +79,9 @@ abstract class AbstractPseudoValueTest : AbstractPseudocodeTest() {
             valueDescriptions[value to element] = valueDescription(element, value)
         }
 
-        val elementColumnWidth = elementToValues.keys.map { elementText(it).length }.max() ?: 1
-        val valueColumnWidth = allValues.map { valueDecl(it).length }.max()!!
-        val valueDescColumnWidth = valueDescriptions.values.map { it.length }.max()!!
+        val elementColumnWidth = elementToValues.keys.map { elementText(it).length }.maxOrNull() ?: 1
+        val valueColumnWidth = allValues.map { valueDecl(it).length }.maxOrNull()!!
+        val valueDescColumnWidth = valueDescriptions.values.map { it.length }.maxOrNull()!!
 
         for ((ve, description) in valueDescriptions.entries) {
             val (value, element) = ve
