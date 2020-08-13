@@ -328,6 +328,7 @@ public interface Map<K, out V> {
     @PlatformDependent
     public fun getOrDefault(key: K, defaultValue: @UnsafeVariance V): V {
         // See default implementation in JDK sources
+        @Suppress("UNCHECKED_CAST")
         return null as V
     }
 

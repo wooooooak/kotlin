@@ -299,6 +299,7 @@ public inline fun <R, T : R> Result<T>.recover(transform: (exception: Throwable)
 @InlineOnly
 @SinceKotlin("1.3")
 public inline fun <R, T : R> Result<T>.recoverCatching(transform: (exception: Throwable) -> R): Result<R> {
+    @Suppress("UNUSED_VARIABLE")
     val value = value // workaround for inline classes BE bug
     return when (val exception = exceptionOrNull()) {
         null -> this
