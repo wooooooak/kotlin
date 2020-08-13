@@ -69,6 +69,8 @@ var DataNode<out ModuleData>.dependenciesCache
         )
 var DataNode<out ModuleData>.pureKotlinSourceFolders
         by NotNullableCopyableDataNodeUserDataProperty(Key.create<List<String>>("PURE_KOTLIN_SOURCE_FOLDER"), emptyList())
+var DataNode<out ModuleData>.compilerArgumentsMapper
+        by CopyableDataNodeUserDataProperty(Key.create<CompilerArgumentsDataMapper>("COMPILER_ARGUMENTS_MAPPER"))
 
 
 class KotlinGradleProjectResolverExtension : AbstractProjectResolverExtension() {
@@ -232,6 +234,7 @@ class KotlinGradleProjectResolverExtension : AbstractProjectResolverExtension() 
         ideModule.compilerArgumentsBySourceSet = gradleModel.compilerArgumentsBySourceSet.deepCopy()
         ideModule.coroutines = gradleModel.coroutines
         ideModule.platformPluginId = gradleModel.platformPluginId
+        ideModule.compilerArgumentsMapper = gradleModel.compilerArgumentsMapper
 
         if (gradleModel.hasKotlinPlugin) {
             KotlinFUSLogger.log(FUSEventGroups.GradleTarget, gradleModel.kotlinTarget ?: "unknown")

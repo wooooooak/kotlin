@@ -17,15 +17,15 @@ import java.lang.reflect.InvocationTargetException
 import java.util.*
 
 interface ArgsInfo : Serializable {
-    val currentArguments: List<String>
-    val defaultArguments: List<String>
-    val dependencyClasspath: List<String>
+    val currentArguments: List<Long>
+    val defaultArguments: List<Long>
+    val dependencyClasspath: List<Long>
 }
 
 data class ArgsInfoImpl(
-    override val currentArguments: List<String>,
-    override val defaultArguments: List<String>,
-    override val dependencyClasspath: List<String>
+    override val currentArguments: List<Long>,
+    override val defaultArguments: List<Long>,
+    override val dependencyClasspath: List<Long>
 ) : ArgsInfo {
 
     constructor(argsInfo: ArgsInfo) : this(
@@ -55,6 +55,7 @@ interface KotlinGradleModel : Serializable {
     val kotlinTarget: String?
     val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet
     val gradleUserHome: String
+    val compilerArgumentsMapper: CompilerArgumentsDataMapper
 }
 
 data class KotlinGradleModelImpl(
@@ -65,7 +66,8 @@ data class KotlinGradleModelImpl(
     override val implements: List<String>,
     override val kotlinTarget: String? = null,
     override val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet,
-    override val gradleUserHome: String
+    override val gradleUserHome: String,
+    override val compilerArgumentsMapper: CompilerArgumentsDataMapper
 ) : KotlinGradleModel
 
 abstract class AbstractKotlinGradleModelBuilder : ModelBuilderService {
@@ -163,6 +165,7 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
     }
 
     override fun buildAll(modelName: String?, project: Project): KotlinGradleModelImpl {
+        val dataMapper = CompilerArgumentsDataMapperImpl()
         val kotlinPluginId = kotlinPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
         val platformPluginId = platformPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
 
@@ -177,7 +180,11 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
                 ?: compileTask.getCompilerArguments("getSerializedCompilerArgumentsIgnoreClasspathIssues") ?: emptyList()
             val defaultArguments = compileTask.getCompilerArguments("getDefaultSerializedCompilerArguments").orEmpty()
             val dependencyClasspath = compileTask.getDependencyClasspath()
-            compilerArgumentsBySourceSet[sourceSetName] = ArgsInfoImpl(currentArguments, defaultArguments, dependencyClasspath)
+            compilerArgumentsBySourceSet[sourceSetName] = ArgsInfoImpl(
+                currentArguments.mapValuesToMapperIds(dataMapper),
+                defaultArguments.mapValuesToMapperIds(dataMapper),
+                dependencyClasspath.mapValuesToMapperIds(dataMapper)
+            )
             extraProperties.acknowledgeTask(compileTask, null)
         }
 
@@ -192,7 +199,8 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
             implementedProjects.map { it.pathOrName() },
             platform ?: kotlinPluginId,
             extraProperties,
-            project.gradle.gradleUserHomeDir.absolutePath
+            project.gradle.gradleUserHomeDir.absolutePath,
+            dataMapper
         )
     }
 }

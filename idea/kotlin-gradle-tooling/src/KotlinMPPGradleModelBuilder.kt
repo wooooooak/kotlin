@@ -56,10 +56,12 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
             true,
             SourceSetCachedFinder(project)
         )
+        val compilerArgumentsMapper = CompilerArgumentsDataMapperImpl()
         val dependencyMapper = KotlinDependencyMapper()
         val sourceSets = buildSourceSets(dependencyResolver, project, dependencyMapper) ?: return null
         val sourceSetMap = sourceSets.map { it.name to it }.toMap()
-        val targets = buildTargets(projectTargets, sourceSetMap, dependencyResolver, project, dependencyMapper) ?: return null
+        val targets = buildTargets(projectTargets, sourceSetMap, dependencyResolver, project, dependencyMapper, compilerArgumentsMapper)
+            ?: return null
         computeSourceSetsDeferredInfo(sourceSetMap, targets, isHMPPEnabled(project), shouldCoerceRootSourceSetToCommon(project))
         val coroutinesState = getCoroutinesState(project)
         reportUnresolvedDependencies(targets)
@@ -69,7 +71,8 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
             targets,
             ExtraFeaturesImpl(coroutinesState, isHMPPEnabled(project), isNativeDependencyPropagationEnabled(project)),
             kotlinNativeHome,
-            dependencyMapper.toDependencyMap()
+            dependencyMapper.toDependencyMap(),
+            compilerArgumentsMapper
         )
     }
 
@@ -225,7 +228,8 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         val dependsOnSourceSets = (getDependsOn(gradleSourceSet) as? Set<Named>)?.mapTo(LinkedHashSet()) { it.name } ?: emptySet<String>()
 
         val sourceSetDependenciesBuilder: () -> Array<KotlinDependencyId> = {
-            buildSourceSetDependencies(gradleSourceSet, dependencyResolver, project, androidDeps).map { dependencyMapper.getId(it) }.distinct()
+            buildSourceSetDependencies(gradleSourceSet, dependencyResolver, project, androidDeps).map { dependencyMapper.getId(it) }
+                .distinct()
                 .toTypedArray()
         }
         return KotlinSourceSetProto(
@@ -307,10 +311,21 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         sourceSetMap: Map<String, KotlinSourceSet>,
         dependencyResolver: DependencyResolver,
         project: Project,
-        dependencyMapper: KotlinDependencyMapper
+        dependencyMapper: KotlinDependencyMapper,
+        compilerArgumentsMapper: CompilerArgumentsDataMapper
     ): Collection<KotlinTarget>? {
         val isHMPPEnabled = isHMPPEnabled(project)
-        return projectTargets.mapNotNull { buildTarget(it, sourceSetMap, dependencyResolver, project, dependencyMapper, isHMPPEnabled) }
+        return projectTargets.mapNotNull {
+            buildTarget(
+                it,
+                sourceSetMap,
+                dependencyResolver,
+                project,
+                dependencyMapper,
+                compilerArgumentsMapper,
+                isHMPPEnabled
+            )
+        }
     }
 
     private operator fun Any?.get(methodName: String, vararg params: Any): Any? {
@@ -366,6 +381,7 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         dependencyResolver: DependencyResolver,
         project: Project,
         dependencyMapper: KotlinDependencyMapper,
+        compilerArgumentsMapper: CompilerArgumentsDataMapper,
         isHMPPEnabled: Boolean
     ): KotlinTarget? {
         val targetClass = gradleTarget.javaClass
@@ -392,7 +408,15 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
 
         val gradleCompilations = getCompilations(gradleTarget) ?: return null
         val compilations = gradleCompilations.mapNotNull {
-            val compilation = buildCompilation(it, disambiguationClassifier, sourceSetMap, dependencyResolver, project, dependencyMapper)
+            val compilation = buildCompilation(
+                it,
+                disambiguationClassifier,
+                sourceSetMap,
+                dependencyResolver,
+                project,
+                dependencyMapper,
+                compilerArgumentsMapper
+            )
             if (compilation == null || platform != KotlinPlatform.ANDROID) {
                 compilation
             } else {
@@ -552,8 +576,8 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         sourceSetMap: Map<String, KotlinSourceSet>,
         dependencyResolver: DependencyResolver,
         project: Project,
-        dependencyMapper: KotlinDependencyMapper
-
+        dependencyMapper: KotlinDependencyMapper,
+        compilerArgumentsMapper: CompilerArgumentsDataMapper
     ): KotlinCompilationImpl? {
         val compilationClass = gradleCompilation.javaClass
         val getKotlinSourceSets = compilationClass.getMethodOrNull("getKotlinSourceSets") ?: return null
@@ -563,7 +587,7 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         val kotlinSourceSets = kotlinGradleSourceSets.mapNotNull { sourceSetMap[it.name] }
         val compileKotlinTask = getCompileKotlinTaskName(project, gradleCompilation) ?: return null
         val output = buildCompilationOutput(gradleCompilation, compileKotlinTask) ?: return null
-        val arguments = buildCompilationArguments(compileKotlinTask) ?: return null
+        val arguments = buildCompilationArguments(compileKotlinTask, compilerArgumentsMapper) ?: return null
         val dependencyClasspath = buildDependencyClasspath(compileKotlinTask)
         val dependencies =
             buildCompilationDependencies(gradleCompilation, classifier, sourceSetMap, dependencyResolver, project, dependencyMapper)
@@ -595,7 +619,8 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
      * Returns only those dependencies with RUNTIME scope which are not present with compile scope
      */
     private fun Collection<KotlinDependency>.onlyNewDependencies(compileDependencies: Collection<KotlinDependency>): List<KotlinDependency> {
-        val compileDependencyArtefacts = compileDependencies.flatMap { (it as? ExternalProjectDependency)?.projectDependencyArtifacts ?: emptyList()  }
+        val compileDependencyArtefacts =
+            compileDependencies.flatMap { (it as? ExternalProjectDependency)?.projectDependencyArtifacts ?: emptyList() }
         return this.filter {
             if (it is ExternalProjectDependency)
                 !(compileDependencyArtefacts.containsAll(it.projectDependencyArtifacts))
@@ -735,13 +760,19 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
         null
     } ?: emptyList()
 
-    private fun buildCompilationArguments(compileKotlinTask: Task): KotlinCompilationArguments? {
+    private fun buildCompilationArguments(
+        compileKotlinTask: Task,
+        compilerArgumentsMapper: CompilerArgumentsDataMapper
+    ): KotlinCompilationArguments? {
         val compileTaskClass = compileKotlinTask.javaClass
         val getCurrentArguments = compileTaskClass.getMethodOrNull("getSerializedCompilerArguments")
         val getDefaultArguments = compileTaskClass.getMethodOrNull("getDefaultSerializedCompilerArguments")
         val currentArguments = safelyGetArguments(compileKotlinTask, getCurrentArguments)
         val defaultArguments = safelyGetArguments(compileKotlinTask, getDefaultArguments)
-        return KotlinCompilationArgumentsImpl(defaultArguments.toTypedArray(), currentArguments.toTypedArray())
+        return KotlinCompilationArgumentsImpl(
+            defaultArguments.mapValuesToMapperIds(compilerArgumentsMapper).toTypedArray(),
+            currentArguments.mapValuesToMapperIds(compilerArgumentsMapper).toTypedArray()
+        )
     }
 
     private fun buildDependencyClasspath(compileKotlinTask: Task): List<String> {
@@ -930,7 +961,8 @@ class KotlinMPPGradleModelBuilder : ModelBuilderService {
                 if (dependency !is ExternalProjectDependency)
                     return@getOrPut adjustLibraryDependency(dependency, parentScope)
                 if (dependency.configurationName != Dependency.DEFAULT_CONFIGURATION &&
-                    !EXTRA_DEFAULT_CONFIGURATION_NAMES.contains(dependency.configurationName))
+                    !EXTRA_DEFAULT_CONFIGURATION_NAMES.contains(dependency.configurationName)
+                )
                     return@getOrPut listOf(dependency)
                 val artifacts = dependenciesByProjectPath[dependency.projectPath] ?: return@getOrPut listOf(dependency)
                 val artifactConfiguration = artifacts.mapTo(LinkedHashSet()) {

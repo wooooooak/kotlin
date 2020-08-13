@@ -60,6 +60,7 @@ import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.io.File
 import java.lang.reflect.Proxy
 import java.util.*
+import java.util.concurrent.Executors
 import java.util.stream.Collectors
 import kotlin.collections.HashMap
 
@@ -275,6 +276,7 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
             val mainModuleData = mainModuleNode.data
             val mainModuleConfigPath = mainModuleData.linkedExternalProjectPath
             val mainModuleFileDirectoryPath = mainModuleData.moduleFileDirectoryPath
+            val mainModuleCompilerArgumentsMapper = mainModuleNode.compilerArgumentsMapper
 
             val externalProject = resolverCtx.getExtraProject(gradleModule, ExternalProject::class.java)
             val mppModel = resolverCtx.getMppModel(gradleModule)
@@ -362,7 +364,8 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
                     val kotlinSourceSet = createSourceSetInfo(
                         compilation,
                         gradleModule,
-                        resolverCtx
+                        resolverCtx,
+                        mainModuleCompilerArgumentsMapper
                     ) ?: continue
                     kotlinSourceSet.externalSystemRunTasks =
                         compilation.sourceSets.firstNotNullResult { sourceSetToRunTasks[it] } ?: emptyList()
@@ -784,7 +787,8 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
             if (fromModule.data == toModule.data) return
             val fromData = fromModule.data as? ModuleData ?: return
             val toData = toModule.data as? ModuleData ?: return
-            val existing = fromModule.children.mapNotNull { it.data as? ModuleDependencyData }.filter { it.target.id == (toModule.data as? ModuleData)?.id }
+            val existing = fromModule.children.mapNotNull { it.data as? ModuleDependencyData }
+                .filter { it.target.id == (toModule.data as? ModuleData)?.id }
             val nodeToModify =
                 existing.singleOrNull() ?: existing.firstOrNull { it.scope == DependencyScope.COMPILE } ?: existing.firstOrNull()
             if (nodeToModify != null) {
@@ -1024,14 +1028,16 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
         fun createSourceSetInfo(
             compilation: KotlinCompilation,
             gradleModule: IdeaModule,
-            resolverCtx: ProjectResolverContext
+            resolverCtx: ProjectResolverContext,
+            dataMapper: CompilerArgumentsDataMapper
         ): KotlinSourceSetInfo? {
             if (compilation.platform.isNotSupported()) return null
             if (Proxy.isProxyClass(compilation.javaClass)) {
                 return createSourceSetInfo(
                     KotlinCompilationImpl(compilation, HashMap<Any, Any>()),
                     gradleModule,
-                    resolverCtx
+                    resolverCtx,
+                    dataMapper
                 )
             }
             return KotlinSourceSetInfo(compilation).also { sourceSetInfo ->
@@ -1043,12 +1049,18 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
                     getGradleModuleQualifiedName(resolverCtx, gradleModule, it)
                 }.distinct().toList()
                 sourceSetInfo.compilerArguments =
-                    createCompilerArguments(compilation.arguments.currentArguments.toList(), compilation.platform).also {
+                    createCompilerArguments(
+                        compilation.arguments.currentArguments.toList().mapperIdsToValues(dataMapper),
+                        compilation.platform
+                    ).also {
                         it.multiPlatform = true
                     }
                 sourceSetInfo.dependencyClasspath = compilation.dependencyClasspath.toList()
                 sourceSetInfo.defaultCompilerArguments =
-                    createCompilerArguments(compilation.arguments.defaultArguments.toList(), compilation.platform)
+                    createCompilerArguments(
+                        compilation.arguments.defaultArguments.toList().mapperIdsToValues(dataMapper),
+                        compilation.platform
+                    )
                 sourceSetInfo.addSourceSets(compilation.sourceSets, compilation.fullName(), gradleModule, resolverCtx)
             }
         }

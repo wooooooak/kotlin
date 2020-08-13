@@ -89,8 +89,8 @@ interface KotlinCompilationOutput : Serializable {
 }
 
 interface KotlinCompilationArguments : Serializable {
-    val defaultArguments: Array<String>
-    val currentArguments: Array<String>
+    val defaultArguments: Array<Long>
+    val currentArguments: Array<Long>
 }
 
 interface KotlinNativeCompilationExtensions : Serializable {
@@ -180,6 +180,7 @@ interface KotlinMPPGradleModel : Serializable {
     val targets: Collection<KotlinTarget>
     val extraFeatures: ExtraFeatures
     val kotlinNativeHome: String
+    val dataMapper: CompilerArgumentsDataMapper
 
     companion object {
         const val NO_KOTLIN_NATIVE_HOME = ""
