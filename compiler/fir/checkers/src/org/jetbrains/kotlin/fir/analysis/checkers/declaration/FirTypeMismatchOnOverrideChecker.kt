@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.fir.resolve.toSymbol
 import org.jetbrains.kotlin.fir.scopes.FirTypeScope
 import org.jetbrains.kotlin.fir.scopes.ProcessorAction
 import org.jetbrains.kotlin.fir.scopes.impl.*
+import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
@@ -38,30 +39,10 @@ object FirTypeMismatchOnOverrideChecker : FirMemberDeclarationChecker() {
             stubTypesEqualToAnything = false
         )
 
-        val scopes = mutableListOf<FirTypeScope>()
-
-        for (it in declaration.superTypeRefs) {
-            it.coneType.scope(context.session, context.sessionHolder.scopeSession)?.let {
-                scopes.add(it)
-            }
-        }
-
-        val intersectionScope = FirTypeIntersectionScope.prepareIntersectionScope(
-            context.session,
-            FirStandardOverrideChecker(context.session),
-            scopes
+        val firTypeScope = declaration.unsubstitutedScope(
+            context.sessionHolder.session,
+            context.sessionHolder.scopeSession
         )
-
-        val firTypeScope = FirClassUseSiteMemberScope(
-            context.session,
-            intersectionScope,
-            declaredMemberScope(declaration)
-        )
-
-//        val firTypeScope = declaration.unsubstitutedScope(
-//            context.sessionHolder.session,
-//            context.sessionHolder.scopeSession
-//        )
 
         for (it in declaration.declarations) {
             when (it) {
