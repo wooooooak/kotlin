@@ -23,7 +23,7 @@ object FirPropertyInitializationAnalyzer : AbstractFirCfaPropertyAssignmentCheck
         graph: ControlFlowGraph,
         reporter: DiagnosticReporter,
         data: Map<CFGNode<*>, PropertyInitializationInfo>,
-        properties: Set<FirPropertySymbol>
+        properties: Set<FirPropertySymbol>,
     ) {
         // getting symbols of properties without initializers and non-variable symbols
         val localData = data.filter {

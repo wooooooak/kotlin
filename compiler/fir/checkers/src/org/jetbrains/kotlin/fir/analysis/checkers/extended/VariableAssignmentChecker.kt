@@ -7,15 +7,13 @@ package org.jetbrains.kotlin.fir.analysis.checkers.extended
 
 
 import org.jetbrains.kotlin.contracts.description.EventOccurrencesRange
-import org.jetbrains.kotlin.fir.FirFakeSourceElementKind
+import org.jetbrains.kotlin.fir.FirFakeSourceElement
 import org.jetbrains.kotlin.fir.FirSourceElement
 import org.jetbrains.kotlin.fir.analysis.cfa.AbstractFirCfaPropertyAssignmentChecker
 import org.jetbrains.kotlin.fir.analysis.cfa.TraverseDirection
 import org.jetbrains.kotlin.fir.analysis.cfa.traverse
 import org.jetbrains.kotlin.fir.analysis.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirErrors
-import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
-import org.jetbrains.kotlin.fir.expressions.toResolvedCallableSymbol
 import org.jetbrains.kotlin.fir.psi
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
@@ -31,63 +29,43 @@ object VariableAssignmentChecker : AbstractFirCfaPropertyAssignmentChecker() {
         data: Map<CFGNode<*>, PropertyInitializationInfo>,
         properties: Set<FirPropertySymbol>
     ) {
-        val unusedProperties = mutableMapOf<FirPropertySymbol, VariableCharacteristic>()
+        val unprocessedProperties = mutableSetOf<FirPropertySymbol>()
+        val propertiesCharacteristics = mutableMapOf<FirPropertySymbol, EventOccurrencesRange>()
 
-        val reporterVisitor = VariableVisitor(data, properties, unusedProperties, reporter)
+        val reporterVisitor = UninitializedPropertyReporter(data, properties, unprocessedProperties, propertiesCharacteristics)
         graph.traverse(TraverseDirection.Forward, reporterVisitor)
+
+        for (property in unprocessedProperties) {
+            if (property.fir.source is FirFakeSourceElement<*>) continue
+            if (property.callableId.callableName.asString() == "<destruct>") continue
+            propertiesCharacteristics[property] = EventOccurrencesRange.ZERO
+        }
 
         var lastDestructuringSource: FirSourceElement? = null
         var destructuringCanBeVal = false
-        var isAnyVariableUsedInDestructuring = false
         var lastDestructuredVariables = 0
 
-        for ((symbol, value) in unusedProperties) {
-            val valOrVarSource = symbol.getValOrVarSource
-            val eventOccurrencesRange = value.eventOccurrencesRange
+        for ((symbol, value) in propertiesCharacteristics) {
+            val source = symbol.getValOrVarSource
             if (symbol.callableId.callableName.asString() == "<destruct>") {
                 lastDestructuringSource = symbol.getValOrVarSource
                 val childrenCount = symbol.fir.psi?.children?.size ?: continue
                 lastDestructuredVariables = childrenCount - 1 // -1 cuz we don't need expression node after equals operator
                 destructuringCanBeVal = true
-                isAnyVariableUsedInDestructuring = false
                 continue
             }
 
-            if (!value.isVariableUsed) {
-                reporter.report(symbol.fir.source, FirErrors.UNUSED_VARIABLE)
-            } else if (!value.isAccessed) {
-                reporter.report(symbol.fir.source, FirErrors.VARIABLE_NEVER_READ)
-            } else if (value.hasRedundantInitializer) {
-                reporter.report(symbol.fir.source, FirErrors.VARIABLE_INITIALIZER_IS_REDUNDANT)
-            }
-
-            if (
-                lastDestructuringSource == null
-                && value.isVariableUsed
-                && canBeVal(symbol, eventOccurrencesRange)
-                && symbol.fir.delegate == null
-            ) {
-                reporter.report(valOrVarSource, FirErrors.CAN_BE_VAL)
-            }
             if (lastDestructuringSource != null) {
-                if (value.isAccessed) {
-                    isAnyVariableUsedInDestructuring = true
-                }
-                // if this is the last variable in destructuring declaration
-                // and destructuringCanBeVal == true and it can be val
-                if (
-                    isAnyVariableUsedInDestructuring
-                    && lastDestructuredVariables == 1
-                    && destructuringCanBeVal
-                    && canBeVal(symbol, eventOccurrencesRange)
-                ) {
+                // if this is the last variable in destructuring declaration and destructuringCanBeVal == true and it can be val
+                if (lastDestructuredVariables == 1 && destructuringCanBeVal && canBeVal(symbol, value)) {
                     reporter.report(lastDestructuringSource, FirErrors.CAN_BE_VAL)
                     lastDestructuringSource = null
-                } else if (!canBeVal(symbol, eventOccurrencesRange)) {
+                } else if (!canBeVal(symbol, value)) {
                     destructuringCanBeVal = false
                 }
-
                 lastDestructuredVariables--
+            } else if (canBeVal(symbol, value) && symbol.fir.delegate == null) {
+                reporter.report(source, FirErrors.CAN_BE_VAL)
             }
         }
     }
@@ -98,55 +76,31 @@ object VariableAssignmentChecker : AbstractFirCfaPropertyAssignmentChecker() {
                 || value == EventOccurrencesRange.ZERO
                 ) && symbol.fir.isVar
 
-    private class VariableVisitor(
+    private class UninitializedPropertyReporter(
         val data: Map<CFGNode<*>, PropertyInitializationInfo>,
-        val properties: Set<FirPropertySymbol>,
-        val unusedProperties: MutableMap<FirPropertySymbol, VariableCharacteristic>,
-        val reporter: DiagnosticReporter
+        val localProperties: Set<FirPropertySymbol>,
+        val unprocessedProperties: MutableSet<FirPropertySymbol>,
+        val propertiesCharacteristics: MutableMap<FirPropertySymbol, EventOccurrencesRange>
     ) : ControlFlowGraphVisitorVoid() {
         override fun visitNode(node: CFGNode<*>) {}
 
         override fun visitVariableAssignmentNode(node: VariableAssignmentNode) {
             val symbol = (node.fir.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirPropertySymbol
                 ?: return
-            if (symbol !in properties) return
+            if (symbol !in localProperties) return
+            unprocessedProperties.remove(symbol)
 
-            val currentCharacteristic = unusedProperties[symbol] ?: return
-            currentCharacteristic.isVariableUsed = true
-
-            val resolvedFunctionCallReceiverSymbol = (node.fir.rValue as? FirFunctionCall)?.explicitReceiver?.toResolvedCallableSymbol()
-            if (currentCharacteristic.afterInitialization && resolvedFunctionCallReceiverSymbol != symbol) {
-                currentCharacteristic.hasRedundantInitializer = true
-            } else if (!currentCharacteristic.isValueRead && resolvedFunctionCallReceiverSymbol != symbol) {
-                //val nodeSource = currentCharacteristic.lastAssignmentSource
-                //reporter.report(nodeSource, FirErrors.ASSIGNED_VALUE_IS_NEVER_READ)
-            }
-
-            currentCharacteristic.lastAssignmentSource = node.fir.source
-            currentCharacteristic.afterInitialization = false
-
-            val currentUsages = currentCharacteristic.eventOccurrencesRange
-            currentCharacteristic.eventOccurrencesRange = currentUsages or (data.getValue(node)[symbol] ?: EventOccurrencesRange.ZERO)
+            val currentCharacteristic = propertiesCharacteristics.getOrDefault(symbol, EventOccurrencesRange.ZERO)
+            propertiesCharacteristics[symbol] = currentCharacteristic.or(data.getValue(node)[symbol] ?: EventOccurrencesRange.ZERO)
         }
 
         override fun visitVariableDeclarationNode(node: VariableDeclarationNode) {
             val symbol = node.fir.symbol
-            if (symbol.fir.initializer?.source?.kind == FirFakeSourceElementKind.DesugaredForLoop) return
-
-            unusedProperties[symbol] = VariableCharacteristic()
-            if (node.fir.initializer != null) {
-                unusedProperties[symbol]!!.eventOccurrencesRange = EventOccurrencesRange.AT_MOST_ONCE
-                unusedProperties[symbol]!!.afterInitialization = true
+            if (node.fir.initializer == null && node.fir.delegate == null) {
+                unprocessedProperties.add(symbol)
+            } else {
+                propertiesCharacteristics[symbol] = EventOccurrencesRange.AT_MOST_ONCE
             }
-        }
-
-        override fun visitQualifiedAccessNode(node: QualifiedAccessNode) {
-            val symbol = (node.fir.calleeReference as? FirResolvedNamedReference)?.resolvedSymbol as? FirPropertySymbol
-                ?: return
-            val currentCharacteristic = unusedProperties[symbol] ?: return // todo
-            currentCharacteristic.isAccessed = true
-            currentCharacteristic.isVariableUsed = true
-            currentCharacteristic.afterInitialization = false
         }
     }
 
@@ -154,15 +108,4 @@ object VariableAssignmentChecker : AbstractFirCfaPropertyAssignmentChecker() {
         get() = (fir.psi as? KtProperty)?.valOrVarKeyword?.toFirPsiSourceElement()
             ?: fir.psi?.firstChild?.toFirPsiSourceElement()
             ?: fir.source
-
-    private class VariableCharacteristic {
-        var isValueRead: Boolean = false
-        var isVariableUsed = false
-        var afterInitialization = false
-        var isAccessed = false
-        var hasRedundantInitializer = false
-        var eventOccurrencesRange: EventOccurrencesRange = EventOccurrencesRange.ZERO
-
-        var lastAssignmentSource: FirSourceElement? = null
-    }
 }

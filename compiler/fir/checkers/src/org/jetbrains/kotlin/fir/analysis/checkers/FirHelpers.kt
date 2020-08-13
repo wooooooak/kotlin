@@ -11,8 +11,10 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.FirSymbolOwner
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.declarations.*
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.impl.FirEmptyExpressionBlock
+import org.jetbrains.kotlin.fir.expressions.toResolvedCallableSymbol
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.resolve.firSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.toSymbol
@@ -271,6 +273,8 @@ private fun FirDeclaration.hasBody(): Boolean = when (this) {
     else -> false
 }
 
+val FirFunctionCall.isIterator
+    get() = explicitReceiver?.toResolvedCallableSymbol()?.callableId?.callableName?.asString() == "<iterator>"
 /**
  * Finds any non-interface supertype and returns it
  * or null if couldn't find any.

@@ -1,5 +1,26 @@
 import kotlin.reflect.KProperty
 
+class Outer {
+    fun foo() {
+        class Local {
+            fun bar() {
+                <!UNUSED_VARIABLE!>val x = y<!>
+            }
+        }
+    }
+
+    val y = ""
+}
+
+fun f() {
+    val a = 1
+
+    fun g(): Int {
+        return a
+    }
+}
+
+
 fun foo(v: Int) {
     <!UNUSED_VARIABLE!>val d: Int by Delegate<!>
     <!UNUSED_VARIABLE!>val a: Int<!>
@@ -19,4 +40,3 @@ object Delegate {
 
 @Target(AnnotationTarget.LOCAL_VARIABLE)
 annotation class Anno
-

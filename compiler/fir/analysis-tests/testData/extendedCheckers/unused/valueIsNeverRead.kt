@@ -1,6 +1,6 @@
 fun foo() {
     <!VARIABLE_INITIALIZER_IS_REDUNDANT!>var a = 1<!>
-    a = 2
+    <!ASSIGNED_VALUE_IS_NEVER_READ!>a = 2<!>
     a = 3
-    a += 1
+    <!ASSIGNED_VALUE_IS_NEVER_READ!>a += 1<!>
 }

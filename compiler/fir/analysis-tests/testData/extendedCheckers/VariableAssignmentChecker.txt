@@ -1,4 +1,23 @@
 FILE: VariableAssignmentChecker.kt
+    public final fun main(args: R|kotlin/Array<kotlin/String?>|): R|kotlin/Unit| {
+        lvar a: R|kotlin/String?|
+        lval unused: R|kotlin/Int| = Int(0)
+        when () {
+            ==(R|<local>/args|.R|kotlin/Array.size|, Int(1)) ->  {
+                R|<local>/a| = R|<local>/args|.R|FakeOverride<kotlin/Array.get: R|kotlin/String?|>|(Int(0))
+            }
+            else ->  {
+                R|<local>/a| = R|<local>/args|.R|kotlin/Any.toString|()
+                when () {
+                    !=(R|<local>/a|, Null(null)) && R|<local>/a|.R|kotlin/Any.equals|(String(cde)) ->  {
+                        ^main Unit
+                    }
+                }
+
+            }
+        }
+
+    }
     public final fun testDelegator(): R|kotlin/Unit| {
         lvar x: R|kotlin/Boolean|by R|/LocalFreezableVar.LocalFreezableVar|<R|kotlin/Boolean|>(Boolean(true))
         lvar y: R|kotlin/String|by R|/LocalFreezableVar.LocalFreezableVar|<R|kotlin/String|>(String())
@@ -145,7 +164,7 @@ FILE: VariableAssignmentChecker.kt
             R|<local>/<unary>|
         }
 
-        lval b: R|kotlin/Int|
+        lvar b: R|kotlin/Int|
         while(CMP(<, R|<local>/a|.R|kotlin/Int.compareTo|(Int(10)))) {
             lval <unary>: R|kotlin/Int| = R|<local>/a|
             R|<local>/a| = R|<local>/<unary>|.R|kotlin/Int.inc|()
@@ -160,24 +179,6 @@ FILE: VariableAssignmentChecker.kt
         when () {
             CMP(>, R|<local>/p|.R|kotlin/Int.compareTo|(Int(0))) ->  {
                 R|<local>/v| = Int(1)
-            }
-        }
-
-    }
-    public final fun main(args: R|kotlin/Array<kotlin/String?>|): R|kotlin/Unit| {
-        lvar a: R|kotlin/String?|
-        when () {
-            ==(R|<local>/args|.R|kotlin/Array.size|, Int(1)) ->  {
-                R|<local>/a| = R|<local>/args|.R|FakeOverride<kotlin/Array.get: R|kotlin/String?|>|(Int(0))
-            }
-            else ->  {
-                R|<local>/a| = R|<local>/args|.R|kotlin/Any.toString|()
-            }
-        }
-
-        when () {
-            !=(R|<local>/a|, Null(null)) && R|<local>/a|.R|kotlin/Any.equals|(String(cde)) ->  {
-                ^main Unit
             }
         }
 
