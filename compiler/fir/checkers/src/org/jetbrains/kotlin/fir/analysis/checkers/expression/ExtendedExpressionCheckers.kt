@@ -5,10 +5,7 @@
 
 package org.jetbrains.kotlin.fir.analysis.checkers.expression
 
-import org.jetbrains.kotlin.fir.analysis.checkers.extended.ArrayEqualityCanBeReplacedWithEquals
-import org.jetbrains.kotlin.fir.analysis.checkers.extended.CanBeReplacedWithOperatorAssignmentChecker
-import org.jetbrains.kotlin.fir.analysis.checkers.extended.EmptyRangeChecker
-import org.jetbrains.kotlin.fir.analysis.checkers.extended.RedundantSingleExpressionStringTemplateChecker
+import org.jetbrains.kotlin.fir.analysis.checkers.extended.*
 
 object ExtendedExpressionCheckers : ExpressionCheckers() {
     override val expressionCheckers: List<FirBasicExpresionChecker> = listOf(
