@@ -179,10 +179,10 @@ class CompileServiceServerSideImpl(
     } ?: false
 
     override suspend fun serverHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean {
-        return tryAcquireHandshakeMessage(input, log) && trySendHandshakeMessage(output, log)
+        return tryAcquireHandshakeMessage(input) && trySendHandshakeMessage(output)
     }
 
-    private lateinit var scheduler: CompileServiceTaskScheduler
+    private var scheduler: CompileServiceTaskScheduler
 
     constructor(
         serverSocket: ServerSocketWrapper,
@@ -655,7 +655,7 @@ class CompileServiceServerSideImpl(
         if (facade.hasIncrementalCaches()) {
             builder.register(
                 IncrementalCompilationComponents::class.java,
-                RemoteIncrementalCompilationComponentsClient(facade, eventManager, rpcProfiler)
+                RemoteIncrementalCompilationComponentsClient(facade, rpcProfiler)
             )
         }
         if (facade.hasLookupTracker()) {
