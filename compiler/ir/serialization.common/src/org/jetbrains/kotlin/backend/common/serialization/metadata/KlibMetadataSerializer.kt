@@ -143,6 +143,7 @@ abstract class KlibMetadataSerializer(
         descriptors: List<DeclarationDescriptor>) = topSerializer.packagePartProto(fqName, descriptors).build()
         ?: error("Package fragments not serialized: for $descriptors")
 
+    @Suppress("NAME_SHADOWING")
     protected fun serializeDescriptors(
         fqName: FqName,
         classifierDescriptors: List<DeclarationDescriptor>,

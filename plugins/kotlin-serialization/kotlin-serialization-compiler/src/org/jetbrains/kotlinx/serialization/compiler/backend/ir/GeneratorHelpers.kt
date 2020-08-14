@@ -92,7 +92,7 @@ interface IrBuilderExtension {
         irInvoke(
             dispatchReceiver,
             callee,
-            args = *valueArguments.toTypedArray(),
+            args = valueArguments.toTypedArray(),
             typeHint = returnTypeHint
         ).also { call -> typeArguments.forEachIndexed(call::putTypeArgument) }
 
@@ -502,11 +502,10 @@ interface IrBuilderExtension {
             property.type,
             genericIndex = property.genericIndex
         )
-            ?.let { expr -> wrapWithNullableSerializerIfNeeded(property.module, property.type, expr, nullableSerClass) }
+            ?.let { expr -> wrapWithNullableSerializerIfNeeded(property.type, expr, nullableSerClass) }
     }
 
     private fun IrBuilderWithScope.wrapWithNullableSerializerIfNeeded(
-        module: ModuleDescriptor,
         type: KotlinType,
         expression: IrExpression,
         nullableSerializerClass: IrClassSymbol
@@ -584,7 +583,7 @@ interface IrBuilderExtension {
                 type.genericIndex,
                 genericGetter
             ) ?: return null
-            return wrapWithNullableSerializerIfNeeded(module, type, expr, nullableSerClass)
+            return wrapWithNullableSerializerIfNeeded(type, expr, nullableSerClass)
         }
 
         var serializerClass = serializerClassOriginal
@@ -663,7 +662,7 @@ interface IrBuilderExtension {
                                         (genericType.constructor.declarationDescriptor as TypeParameterDescriptor).representativeUpperBound
                                     )!!
                                 }!!
-                                wrapWithNullableSerializerIfNeeded(module, type, expr, nullableSerClass)
+                                wrapWithNullableSerializerIfNeeded(type, expr, nullableSerClass)
                             }
                         )
                     )
