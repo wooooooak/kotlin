@@ -122,7 +122,6 @@ internal class DelegatedMemberGenerator(
                 superFunction.name,
                 superFunction.visibility,
                 modality,
-                superFunction.returnType,
                 superFunction.isInline,
                 superFunction.isExternal,
                 superFunction.isTailrec,
@@ -132,6 +131,7 @@ internal class DelegatedMemberGenerator(
                 superFunction.isExpect
             ).apply {
                 descriptor.bind(this)
+                returnType = superFunction.returnType
                 declarationStorage.enterScope(this)
                 this.parent = subClass
                 overriddenSymbols = listOf(superFunction.symbol)

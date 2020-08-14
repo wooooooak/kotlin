@@ -53,7 +53,6 @@ class FakeOverrideCopier(
             symbolRenamer.getFunctionName(declaration.symbol),
             declaration.visibility,
             declaration.modality,
-            declaration.returnType,
             isInline = declaration.isInline,
             isExternal = false,
             isTailrec = declaration.isTailrec,
@@ -62,6 +61,7 @@ class FakeOverrideCopier(
             isOperator = declaration.isOperator,
             isInfix = declaration.isInfix
         ).apply {
+            returnType = declaration.returnType
             transformFunctionChildren(declaration)
         }
 

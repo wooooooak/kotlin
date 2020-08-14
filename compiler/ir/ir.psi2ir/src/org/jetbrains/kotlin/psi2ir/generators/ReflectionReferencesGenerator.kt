@@ -34,7 +34,10 @@ import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrVariableSymbol
-import org.jetbrains.kotlin.ir.util.*
+import org.jetbrains.kotlin.ir.util.isSafeToUseWithoutCopying
+import org.jetbrains.kotlin.ir.util.referenceClassifier
+import org.jetbrains.kotlin.ir.util.referenceFunction
+import org.jetbrains.kotlin.ir.util.withScope
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
@@ -337,7 +340,6 @@ class ReflectionReferencesGenerator(statementGenerator: StatementGenerator) : St
                 adapteeDescriptor.name,
                 Visibilities.LOCAL,
                 Modality.FINAL,
-                ktExpectedReturnType.toIrType(),
                 isInline = adapteeDescriptor.isInline, // TODO ?
                 isExternal = false,
                 isTailrec = false,
@@ -348,6 +350,7 @@ class ReflectionReferencesGenerator(statementGenerator: StatementGenerator) : St
                 isFakeOverride = false
             ).also { irAdapterFun ->
                 adapterFunctionDescriptor.bind(irAdapterFun)
+                irAdapterFun.returnType = ktExpectedReturnType.toIrType()
 
                 context.symbolTable.withScope(adapterFunctionDescriptor) {
                     irAdapterFun.metadata = MetadataSource.Function(adapteeDescriptor)

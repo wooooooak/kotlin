@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.IrExpressionBody
 import org.jetbrains.kotlin.ir.symbols.*
-import org.jetbrains.kotlin.ir.types.impl.IrUninitializedType
 import org.jetbrains.kotlin.ir.util.createIrClassFromDescriptor
 import org.jetbrains.kotlin.ir.util.withScope
 import org.jetbrains.kotlin.psi.KtParameter
@@ -161,8 +160,7 @@ class StandaloneDeclarationGenerator(private val context: GeneratorContext) {
     ): IrConstructor {
         val irConstructor = with(descriptor) {
             irFactory.createConstructor(
-                startOffset, endOffset, origin, symbol, name, visibility, IrUninitializedType, isInline,
-                isEffectivelyExternal(), isPrimary, isExpect
+                startOffset, endOffset, origin, symbol, name, visibility, isInline, isEffectivelyExternal(), isPrimary, isExpect
             )
         }
         irConstructor.metadata = MetadataSource.Function(descriptor)
@@ -187,7 +185,7 @@ class StandaloneDeclarationGenerator(private val context: GeneratorContext) {
     ): IrSimpleFunction {
         val irFunction = with(descriptor) {
             irFactory.createFunction(
-                startOffset, endOffset, origin, symbol, name, visibility, modality, IrUninitializedType,
+                startOffset, endOffset, origin, symbol, name, visibility, modality,
                 isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect
             )
         }

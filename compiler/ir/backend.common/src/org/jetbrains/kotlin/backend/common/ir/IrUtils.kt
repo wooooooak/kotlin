@@ -517,7 +517,6 @@ fun IrFactory.createStaticFunctionWithReceivers(
         name,
         visibility,
         modality,
-        oldFunction.returnType,
         isInline = oldFunction.isInline,
         isExternal = false,
         isTailrec = false,
@@ -529,6 +528,7 @@ fun IrFactory.createStaticFunctionWithReceivers(
         containerSource = oldFunction.containerSource,
     ).apply {
         descriptor.bind(this)
+        returnType = oldFunction.returnType
         parent = irParent
 
         val newTypeParametersFromContext = copyAndRenameConflictingTypeParametersFrom(

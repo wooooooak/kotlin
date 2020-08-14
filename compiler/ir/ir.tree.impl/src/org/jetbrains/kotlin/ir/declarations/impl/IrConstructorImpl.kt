@@ -34,7 +34,6 @@ class IrConstructorImpl(
     override val symbol: IrConstructorSymbol,
     override val name: Name,
     override var visibility: Visibility,
-    returnType: IrType,
     override val isInline: Boolean,
     override val isExternal: Boolean,
     override val isPrimary: Boolean,
@@ -50,14 +49,7 @@ class IrConstructorImpl(
 
     override lateinit var parent: IrDeclarationParent
     override var annotations: List<IrConstructorCall> = emptyList()
-
-    @Suppress("DEPRECATION")
-    override var returnType: IrType = returnType
-        get() = if (field === org.jetbrains.kotlin.ir.types.impl.IrUninitializedType) {
-            error("Return type is not initialized")
-        } else {
-            field
-        }
+    override lateinit var returnType: IrType
 
     override var typeParameters: List<IrTypeParameter> = emptyList()
 

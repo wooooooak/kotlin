@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.MetadataSource
-import org.jetbrains.kotlin.ir.types.impl.IrUninitializedType
 
 @ObsoleteDescriptorBasedAPI
 fun SymbolTable.declareSimpleFunctionWithOverrides(
@@ -23,7 +22,7 @@ fun SymbolTable.declareSimpleFunctionWithOverrides(
         with(descriptor) {
             irFactory.createFunction(
                 startOffset, endOffset, origin, it, nameProvider.nameForDeclaration(this),
-                visibility, modality, IrUninitializedType, isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect
+                visibility, modality, isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect
             ).also { declaration ->
                 declaration.metadata = MetadataSource.Function(this)
             }

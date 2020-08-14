@@ -69,9 +69,10 @@ class IrBuiltIns(
         val symbol = symbolTable.declareSimpleFunctionIfNotExists(operatorDescriptor) {
             val operator = irFactory.createFunction(
                 UNDEFINED_OFFSET, UNDEFINED_OFFSET, BUILTIN_OPERATOR, it, Name.identifier(name), Visibilities.PUBLIC, Modality.FINAL,
-                returnType, isInline = false, isExternal = false, isTailrec = false, isSuspend = false,
+                isInline = false, isExternal = false, isTailrec = false, isSuspend = false,
                 isOperator = false, isInfix = false, isExpect = false, isFakeOverride = false
             )
+            operator.returnType = returnType
             operator.parent = packageFragment
             packageFragment.declarations += operator
 
@@ -155,10 +156,11 @@ class IrBuiltIns(
 
         return symbolTable.declareSimpleFunctionIfNotExists(operatorDescriptor) {
             val operator = irFactory.createFunction(
-                UNDEFINED_OFFSET, UNDEFINED_OFFSET, BUILTIN_OPERATOR, it, name, Visibilities.PUBLIC, Modality.FINAL, returnIrType,
+                UNDEFINED_OFFSET, UNDEFINED_OFFSET, BUILTIN_OPERATOR, it, name, Visibilities.PUBLIC, Modality.FINAL,
                 isInline = false, isExternal = false, isTailrec = false, isSuspend = false, isOperator = false, isInfix = false,
                 isExpect = false, isFakeOverride = false
             )
+            operator.returnType = returnIrType
             operator.parent = packageFragment
             packageFragment.declarations += operator
 

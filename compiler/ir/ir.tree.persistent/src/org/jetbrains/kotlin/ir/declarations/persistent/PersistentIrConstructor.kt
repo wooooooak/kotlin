@@ -36,7 +36,6 @@ internal class PersistentIrConstructor(
     override val symbol: IrConstructorSymbol,
     override val name: Name,
     visibility: Visibility,
-    returnType: IrType,
     override val isInline: Boolean,
     override val isExternal: Boolean,
     override val isPrimary: Boolean,
@@ -60,23 +59,14 @@ internal class PersistentIrConstructor(
     override var removedOn: Int = Int.MAX_VALUE
     override var annotationsField: List<IrConstructorCall> = emptyList()
 
-    override var returnTypeFieldField: IrType = returnType
+    override var returnTypeField: IrType? = null
 
-    private var returnTypeField: IrType
-        get() = getCarrier().returnTypeFieldField
-        set(v) {
-            if (returnTypeField !== v) {
-                setCarrier().returnTypeFieldField = v
-            }
-        }
-
-    @Suppress("DEPRECATION")
     override var returnType: IrType
-        get() = returnTypeField.let {
-            if (it !== org.jetbrains.kotlin.ir.types.impl.IrUninitializedType) it else error("Return type is not initialized")
-        }
-        set(c) {
-            returnTypeField = c
+        get() = getCarrier().returnTypeField ?: error("Return type is not initialized")
+        set(v) {
+            if (this.returnTypeField !== v) {
+                setCarrier().returnTypeField = v
+            }
         }
 
     override var typeParametersField: List<IrTypeParameter> = emptyList()

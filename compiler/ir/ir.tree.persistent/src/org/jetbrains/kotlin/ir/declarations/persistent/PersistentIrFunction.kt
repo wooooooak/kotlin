@@ -27,7 +27,6 @@ internal abstract class PersistentIrFunctionCommon(
     origin: IrDeclarationOrigin,
     override val name: Name,
     visibility: Visibility,
-    returnType: IrType,
     override val isInline: Boolean,
     override val isExternal: Boolean,
     override val isTailrec: Boolean,
@@ -50,23 +49,14 @@ internal abstract class PersistentIrFunctionCommon(
     override var removedOn: Int = Int.MAX_VALUE
     override var annotationsField: List<IrConstructorCall> = emptyList()
 
-    override var returnTypeFieldField: IrType = returnType
+    override var returnTypeField: IrType? = null
 
-    private var returnTypeField: IrType
-        get() = getCarrier().returnTypeFieldField
+    override var returnType: IrType
+        get() = getCarrier().returnTypeField ?: error("Return type is not initialized")
         set(v) {
             if (returnTypeField !== v) {
-                setCarrier().returnTypeFieldField = v
+                setCarrier().returnTypeField = v
             }
-        }
-
-    @Suppress("DEPRECATION")
-    final override var returnType: IrType
-        get() = returnTypeField.let {
-            if (it !== org.jetbrains.kotlin.ir.types.impl.IrUninitializedType) it else error("Return type is not initialized")
-        }
-        set(c) {
-            returnTypeField = c
         }
 
     override var typeParametersField: List<IrTypeParameter> = emptyList()
@@ -182,7 +172,6 @@ internal class PersistentIrFunction(
     name: Name,
     visibility: Visibility,
     override val modality: Modality,
-    returnType: IrType,
     isInline: Boolean,
     isExternal: Boolean,
     isTailrec: Boolean,
@@ -193,7 +182,7 @@ internal class PersistentIrFunction(
     override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE,
     containerSource: DeserializedContainerSource?
 ) : PersistentIrFunctionCommon(
-    startOffset, endOffset, origin, name, visibility, returnType, isInline,
+    startOffset, endOffset, origin, name, visibility, isInline,
     isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
     containerSource
 ) {
@@ -213,7 +202,6 @@ internal class PersistentIrFakeOverrideFunction(
     name: Name,
     override var visibility: Visibility,
     override var modality: Modality,
-    returnType: IrType,
     isInline: Boolean,
     isExternal: Boolean,
     isTailrec: Boolean,
@@ -222,7 +210,7 @@ internal class PersistentIrFakeOverrideFunction(
     isInfix: Boolean,
     isExpect: Boolean,
 ) : PersistentIrFunctionCommon(
-    startOffset, endOffset, origin, name, visibility, returnType, isInline,
+    startOffset, endOffset, origin, name, visibility, isInline,
     isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
 ), IrFakeOverrideFunction {
     override val isFakeOverride: Boolean

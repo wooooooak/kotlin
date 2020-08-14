@@ -403,7 +403,6 @@ class Fir2IrDeclarationStorage(
                     startOffset, endOffset, updatedOrigin, symbol,
                     name, visibility,
                     simpleFunction?.modality ?: Modality.FINAL,
-                    function.returnTypeRef.toIrType(),
                     isInline = simpleFunction?.isInline == true,
                     isExternal = simpleFunction?.isExternal == true,
                     isTailrec = simpleFunction?.isTailRec == true,
@@ -414,6 +413,7 @@ class Fir2IrDeclarationStorage(
                     isInfix = simpleFunction?.isInfix == true,
                     containerSource = simpleFunction?.containerSource,
                 ).apply {
+                    returnType = function.returnTypeRef.toIrType()
                     metadata = FirMetadataSource.Function(function)
                     convertAnnotationsFromLibrary(function)
                     enterScope(this)
@@ -479,9 +479,9 @@ class Fir2IrDeclarationStorage(
                 irFactory.createConstructor(
                     startOffset, endOffset, origin, symbol,
                     Name.special("<init>"), constructor.visibility,
-                    constructor.returnTypeRef.toIrType(),
                     isInline = false, isExternal = false, isPrimary = isPrimary, isExpect = constructor.isExpect
                 ).apply {
+                    returnType = constructor.returnTypeRef.toIrType()
                     metadata = FirMetadataSource.Function(constructor)
                     enterScope(this)
                     bindAndDeclareParameters(constructor, irParent, isStatic = false)
@@ -534,7 +534,7 @@ class Fir2IrDeclarationStorage(
                 startOffset, endOffset, origin, symbol,
                 Name.special("<$prefix-${correspondingProperty.name}>"),
                 propertyAccessor?.visibility ?: correspondingProperty.visibility,
-                correspondingProperty.modality, accessorReturnType,
+                correspondingProperty.modality,
                 isInline = propertyAccessor?.isInline == true,
                 isExternal = propertyAccessor?.isExternal == true,
                 isTailrec = false, isSuspend = false, isOperator = false,
@@ -542,6 +542,7 @@ class Fir2IrDeclarationStorage(
                 isExpect = false, isFakeOverride = origin == IrDeclarationOrigin.FAKE_OVERRIDE,
                 containerSource = containerSource,
             ).apply {
+                returnType = accessorReturnType
                 correspondingPropertySymbol = correspondingProperty.symbol
                 if (propertyAccessor != null) {
                     metadata = FirMetadataSource.Function(propertyAccessor)

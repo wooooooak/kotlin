@@ -13,7 +13,7 @@ import org.jetbrains.kotlin.ir.expressions.IrBody
 import org.jetbrains.kotlin.ir.types.IrType
 
 internal interface FunctionBaseCarrier : DeclarationCarrier {
-    var returnTypeFieldField: IrType
+    var returnTypeField: IrType?
     var dispatchReceiverParameterField: IrValueParameter?
     var extensionReceiverParameterField: IrValueParameter?
     var bodyField: IrBody?

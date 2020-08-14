@@ -213,7 +213,6 @@ class CallAndReferenceGenerator(
                 adaptee.name,
                 Visibilities.LOCAL,
                 Modality.FINAL,
-                returnType,
                 isInline = firAdaptee.isInline,
                 isExternal = firAdaptee.isExternal,
                 isTailrec = firAdaptee.isTailRec,
@@ -224,6 +223,7 @@ class CallAndReferenceGenerator(
                 isFakeOverride = false
             ).also { irAdapterFunction ->
                 adapterFunctionDescriptor.bind(irAdapterFunction)
+                irAdapterFunction.returnType = returnType
                 irAdapterFunction.metadata = FirMetadataSource.Function(firAdaptee)
 
                 symbolTable.enterScope(irAdapterFunction)

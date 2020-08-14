@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.ir.declarations.IrConstructor
 import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.types.IrType
-import org.jetbrains.kotlin.ir.types.impl.IrUninitializedType
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedContainerSource
 
 class IrFunctionBuilder : IrDeclarationBuilder() {
@@ -18,7 +17,7 @@ class IrFunctionBuilder : IrDeclarationBuilder() {
     var isInline: Boolean = false
     var isExternal: Boolean = false
 
-    var returnType: IrType = IrUninitializedType
+    var returnType: IrType? = null
 
     var modality: Modality = Modality.FINAL
     var isTailrec: Boolean = false

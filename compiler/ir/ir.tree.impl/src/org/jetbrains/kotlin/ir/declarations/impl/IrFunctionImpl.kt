@@ -25,7 +25,6 @@ abstract class IrFunctionCommonImpl(
     override var origin: IrDeclarationOrigin,
     override val name: Name,
     override var visibility: Visibility,
-    returnType: IrType,
     override val isInline: Boolean,
     override val isExternal: Boolean,
     override val isTailrec: Boolean,
@@ -33,21 +32,13 @@ abstract class IrFunctionCommonImpl(
     override val isOperator: Boolean,
     override val isInfix: Boolean,
     override val isExpect: Boolean,
-    override val containerSource: DeserializedContainerSource?,
 ) : IrSimpleFunction() {
     override val factory: IrFactory
         get() = IrFactoryImpl
 
     override lateinit var parent: IrDeclarationParent
     override var annotations: List<IrConstructorCall> = emptyList()
-
-    @Suppress("DEPRECATION")
-    override var returnType: IrType = returnType
-        get() = if (field === org.jetbrains.kotlin.ir.types.impl.IrUninitializedType) {
-            error("Return type is not initialized")
-        } else {
-            field
-        }
+    override lateinit var returnType: IrType
 
     override var typeParameters: List<IrTypeParameter> = emptyList()
 
@@ -75,7 +66,6 @@ class IrFunctionImpl(
     name: Name,
     visibility: Visibility,
     override val modality: Modality,
-    returnType: IrType,
     isInline: Boolean,
     isExternal: Boolean,
     isTailrec: Boolean,
@@ -84,11 +74,10 @@ class IrFunctionImpl(
     isInfix: Boolean,
     isExpect: Boolean,
     override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE,
-    containerSource: DeserializedContainerSource? = null,
+    override val containerSource: DeserializedContainerSource? = null,
 ) : IrFunctionCommonImpl(
-    startOffset, endOffset, origin, name, visibility, returnType, isInline,
+    startOffset, endOffset, origin, name, visibility, isInline,
     isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
-    containerSource,
 ) {
     @ObsoleteDescriptorBasedAPI
     override val descriptor: FunctionDescriptor
@@ -106,7 +95,6 @@ class IrFakeOverrideFunctionImpl(
     name: Name,
     override var visibility: Visibility,
     override var modality: Modality,
-    returnType: IrType,
     isInline: Boolean,
     isExternal: Boolean,
     isTailrec: Boolean,
@@ -115,12 +103,14 @@ class IrFakeOverrideFunctionImpl(
     isInfix: Boolean,
     isExpect: Boolean,
 ) : IrFunctionCommonImpl(
-    startOffset, endOffset, origin, name, visibility, returnType, isInline,
+    startOffset, endOffset, origin, name, visibility, isInline,
     isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
-    containerSource = null,
 ), IrFakeOverrideFunction {
     override val isFakeOverride: Boolean
         get() = true
+
+    override val containerSource: DeserializedContainerSource?
+        get() = null
 
     private var _symbol: IrSimpleFunctionSymbol? = null
 

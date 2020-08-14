@@ -59,7 +59,6 @@ object IrFactoryImpl : IrFactory {
         symbol: IrConstructorSymbol,
         name: Name,
         visibility: Visibility,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isPrimary: Boolean,
@@ -67,8 +66,7 @@ object IrFactoryImpl : IrFactory {
         containerSource: DeserializedContainerSource?,
     ): IrConstructor =
         IrConstructorImpl(
-            startOffset, endOffset, origin, symbol, name, visibility, returnType, isInline, isExternal, isPrimary, isExpect,
-            containerSource,
+            startOffset, endOffset, origin, symbol, name, visibility, isInline, isExternal, isPrimary, isExpect, containerSource,
         )
 
     override fun createEnumEntry(
@@ -109,7 +107,6 @@ object IrFactoryImpl : IrFactory {
         name: Name,
         visibility: Visibility,
         modality: Modality,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isTailrec: Boolean,
@@ -121,7 +118,7 @@ object IrFactoryImpl : IrFactory {
         containerSource: DeserializedContainerSource?,
     ): IrSimpleFunction =
         IrFunctionImpl(
-            startOffset, endOffset, origin, symbol, name, visibility, modality, returnType,
+            startOffset, endOffset, origin, symbol, name, visibility, modality,
             isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect, isFakeOverride,
             containerSource
         )
@@ -133,7 +130,6 @@ object IrFactoryImpl : IrFactory {
         name: Name,
         visibility: Visibility,
         modality: Modality,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isTailrec: Boolean,
@@ -143,7 +139,7 @@ object IrFactoryImpl : IrFactory {
         isExpect: Boolean,
     ): IrSimpleFunction =
         IrFakeOverrideFunctionImpl(
-            startOffset, endOffset, origin, name, visibility, modality, returnType,
+            startOffset, endOffset, origin, name, visibility, modality,
             isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
         )
 

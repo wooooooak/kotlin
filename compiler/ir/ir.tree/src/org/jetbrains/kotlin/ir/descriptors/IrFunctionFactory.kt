@@ -303,7 +303,6 @@ class IrFunctionFactory(private val irBuiltIns: IrBuiltIns, private val symbolTa
 
                 irFactory.createFunction(
                     offset, offset, memberOrigin, it, Name.identifier("invoke"), Visibilities.PUBLIC, Modality.ABSTRACT,
-                    returnType,
                     isInline = false,
                     isExternal = false,
                     isTailrec = false,
@@ -312,7 +311,9 @@ class IrFunctionFactory(private val irBuiltIns: IrBuiltIns, private val symbolTa
                     isInfix = false,
                     isExpect = false,
                     isFakeOverride = false
-                )
+                ).also {
+                    it.returnType = returnType
+                }
             }
 
             val fDeclaration = invokeSymbol.owner
@@ -375,13 +376,14 @@ class IrFunctionFactory(private val irBuiltIns: IrBuiltIns, private val symbolTa
             .filterIsInstance<CallableMemberDescriptor>().filter { it.kind === CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
 
         fun createFakeOverrideFunction(descriptor: FunctionDescriptor, property: IrPropertySymbol?): IrSimpleFunction {
-            val returnType = descriptor.returnType?.let { toIrType(it) } ?: error("No return type for $descriptor")
             val newFunction = symbolTable.declareSimpleFunction(descriptor) {
                 descriptor.run {
                     irFactory.createFunction(
-                        offset, offset, memberOrigin, it, name, visibility, modality, returnType,
+                        offset, offset, memberOrigin, it, name, visibility, modality,
                         isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect, true
-                    )
+                    ).apply {
+                        returnType = descriptor.returnType?.let { toIrType(it) } ?: error("No return type for $descriptor")
+                    }
                 }
             }
 

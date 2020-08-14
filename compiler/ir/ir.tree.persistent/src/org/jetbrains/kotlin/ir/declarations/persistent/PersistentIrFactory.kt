@@ -59,7 +59,6 @@ object PersistentIrFactory : IrFactory {
         symbol: IrConstructorSymbol,
         name: Name,
         visibility: Visibility,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isPrimary: Boolean,
@@ -67,8 +66,7 @@ object PersistentIrFactory : IrFactory {
         containerSource: DeserializedContainerSource?,
     ): IrConstructor =
         PersistentIrConstructor(
-            startOffset, endOffset, origin, symbol, name, visibility, returnType, isInline, isExternal, isPrimary, isExpect,
-            containerSource,
+            startOffset, endOffset, origin, symbol, name, visibility, isInline, isExternal, isPrimary, isExpect, containerSource,
         )
 
     override fun createEnumEntry(
@@ -109,7 +107,6 @@ object PersistentIrFactory : IrFactory {
         name: Name,
         visibility: Visibility,
         modality: Modality,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isTailrec: Boolean,
@@ -121,7 +118,7 @@ object PersistentIrFactory : IrFactory {
         containerSource: DeserializedContainerSource?,
     ): IrSimpleFunction =
         PersistentIrFunction(
-            startOffset, endOffset, origin, symbol, name, visibility, modality, returnType,
+            startOffset, endOffset, origin, symbol, name, visibility, modality,
             isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect, isFakeOverride,
             containerSource
         )
@@ -133,7 +130,6 @@ object PersistentIrFactory : IrFactory {
         name: Name,
         visibility: Visibility,
         modality: Modality,
-        returnType: IrType,
         isInline: Boolean,
         isExternal: Boolean,
         isTailrec: Boolean,
@@ -143,7 +139,7 @@ object PersistentIrFactory : IrFactory {
         isExpect: Boolean,
     ): IrSimpleFunction =
         PersistentIrFakeOverrideFunction(
-            startOffset, endOffset, origin, name, visibility, modality, returnType,
+            startOffset, endOffset, origin, name, visibility, modality,
             isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect,
         )
 

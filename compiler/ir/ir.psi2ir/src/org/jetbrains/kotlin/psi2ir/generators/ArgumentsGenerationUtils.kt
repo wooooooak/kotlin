@@ -389,11 +389,12 @@ private fun StatementGenerator.createFunctionForSuspendConversion(
             irAdapterSymbol,
             Name.identifier(scope.inventNameForTemporary("suspendConversion")),
             Visibilities.LOCAL, Modality.FINAL,
-            irSuspendFunReturnType,
             isInline = false, isExternal = false, isTailrec = false,
             isSuspend = true,
             isOperator = false, isInfix = false, isExpect = false, isFakeOverride = false
-        )
+        ).apply {
+            returnType = irSuspendFunReturnType
+        }
     }
     adapterFunctionDescriptor.bind(irAdapterFun)
 

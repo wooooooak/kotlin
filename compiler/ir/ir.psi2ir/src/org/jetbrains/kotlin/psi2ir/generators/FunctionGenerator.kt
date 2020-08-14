@@ -17,7 +17,6 @@ import org.jetbrains.kotlin.ir.expressions.impl.IrGetFieldImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrReturnImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrSetFieldImpl
-import org.jetbrains.kotlin.ir.types.impl.IrUninitializedType
 import org.jetbrains.kotlin.ir.util.declareSimpleFunctionWithOverrides
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.pureEndOffset
@@ -257,7 +256,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             with(constructorDescriptor) {
                 context.irFactory.createConstructor(
                     startOffset, endOffset, origin, it, context.symbolTable.nameProvider.nameForDeclaration(this),
-                    visibility, IrUninitializedType, isInline, isEffectivelyExternal(), isPrimary, isExpect
+                    visibility, isInline, isEffectivelyExternal(), isPrimary, isExpect
                 )
             }.apply {
                 metadata = MetadataSource.Function(it.descriptor)

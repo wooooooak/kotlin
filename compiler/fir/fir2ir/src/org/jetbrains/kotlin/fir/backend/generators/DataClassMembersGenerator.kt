@@ -236,10 +236,11 @@ class DataClassMembersGenerator(val components: Fir2IrComponents) {
             val signature = if (classId.isLocal) null else components.signatureComposer.composeSignature(firFunction)
             return components.declarationStorage.declareIrSimpleFunction(signature, null) { symbol ->
                 components.irFactory.createFunction(
-                    UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, symbol, name, Visibilities.PUBLIC, Modality.OPEN, returnType,
+                    UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, symbol, name, Visibilities.PUBLIC, Modality.OPEN,
                     isInline = false, isExternal = false, isTailrec = false, isSuspend = false, isOperator = false,
                     isInfix = false, isExpect = false, isFakeOverride = false,
                 ).apply {
+                    this.returnType = returnType
                     if (otherParameterNeeded) {
                         val irValueParameter = createSyntheticIrParameter(
                             this, firFunction.valueParameters.first().name, components.irBuiltIns.anyNType

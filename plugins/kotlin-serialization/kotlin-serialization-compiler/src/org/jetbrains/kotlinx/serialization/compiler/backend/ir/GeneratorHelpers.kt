@@ -287,7 +287,7 @@ interface IrBuilderExtension {
             with(descriptor) {
                 property.factory.createFunction(
                     fieldSymbol.owner.startOffset, fieldSymbol.owner.endOffset, SERIALIZABLE_PLUGIN_ORIGIN, symbol,
-                    name, visibility, modality, returnType!!.toIrType(),
+                    name, visibility, modality,
                     isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect
                 )
             }.also { f ->

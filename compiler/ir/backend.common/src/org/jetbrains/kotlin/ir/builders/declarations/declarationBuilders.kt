@@ -18,7 +18,6 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.parentAsClass
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.serialization.deserialization.descriptors.DescriptorWithContainerSource
 import org.jetbrains.kotlin.types.Variance
 
 @PublishedApi
@@ -123,11 +122,14 @@ internal fun IrFactory.buildFunction(builder: IrFunctionBuilder): IrSimpleFuncti
     createFunction(
         startOffset, endOffset, origin,
         IrSimpleFunctionSymbolImpl(wrappedDescriptor),
-        name, visibility, modality, returnType,
+        name, visibility, modality,
         isInline, isExternal, isTailrec, isSuspend, isOperator, isInfix, isExpect, isFakeOverride,
         containerSource,
-    ).also {
-        wrappedDescriptor.bind(it)
+    ).also { function ->
+        wrappedDescriptor.bind(function)
+        returnType?.let {
+            function.returnType = it
+        }
     }
 }
 
@@ -138,11 +140,14 @@ internal fun IrFactory.buildConstructor(builder: IrFunctionBuilder): IrConstruct
         startOffset, endOffset, origin,
         IrConstructorSymbolImpl(wrappedDescriptor),
         Name.special("<init>"),
-        visibility, returnType,
+        visibility,
         isInline = isInline, isExternal = isExternal, isPrimary = isPrimary, isExpect = isExpect,
         containerSource = containerSource
-    ).also {
-        wrappedDescriptor.bind(it)
+    ).also { function ->
+        wrappedDescriptor.bind(function)
+        returnType?.let {
+            function.returnType = it
+        }
     }
 }
 
