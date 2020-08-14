@@ -479,7 +479,6 @@ object KotlinToJVMBytecodeCompiler {
                     psiSource.psi, this.a, this.b, this.c, factory.psiDiagnosticFactory, severity
                 )
         }
-        throw IllegalArgumentException("Unknown diagnostics: $this")
     }
 
     private fun getBuildFilePaths(buildFile: File?, sourceFilePaths: List<String>): List<String> =
