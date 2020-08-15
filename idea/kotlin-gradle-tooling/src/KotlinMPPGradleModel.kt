@@ -77,9 +77,9 @@ interface KotlinLanguageSettings : Serializable {
     val isProgressiveMode: Boolean
     val enabledLanguageFeatures: Set<String>
     val experimentalAnnotationsInUse: Set<String>
-    val compilerPluginArguments: Array<String>
-    val compilerPluginClasspath: Set<File>
-    val freeCompilerArgs: Array<String>
+    val compilerPluginArguments: Array<CompilerArgumentCacheIdType>
+    val compilerPluginClasspath: Array<ClasspathArgumentCacheIdType>
+    val freeCompilerArgs: Array<CompilerArgumentCacheIdType>
 }
 
 interface KotlinCompilationOutput : Serializable {
@@ -89,8 +89,8 @@ interface KotlinCompilationOutput : Serializable {
 }
 
 interface KotlinCompilationArguments : Serializable {
-    val defaultArguments: Array<Long>
-    val currentArguments: Array<Long>
+    val defaultArguments: Array<CompilerArgumentCacheIdType>
+    val currentArguments: Array<CompilerArgumentCacheIdType>
 }
 
 interface KotlinNativeCompilationExtensions : Serializable {
@@ -101,7 +101,7 @@ interface KotlinCompilation : KotlinModule {
     val sourceSets: Collection<KotlinSourceSet>
     val output: KotlinCompilationOutput
     val arguments: KotlinCompilationArguments
-    val dependencyClasspath: Array<String>
+    val dependencyClasspath:Array<ClasspathArgumentCacheIdType>
     val disambiguationClassifier: String?
     val platform: KotlinPlatform
     val kotlinTaskProperties: KotlinTaskProperties
@@ -180,7 +180,7 @@ interface KotlinMPPGradleModel : Serializable {
     val targets: Collection<KotlinTarget>
     val extraFeatures: ExtraFeatures
     val kotlinNativeHome: String
-    val dataMapper: CompilerArgumentsDataMapper
+    val argumentCachesContainer: ArgumentCachesContainer
 
     companion object {
         const val NO_KOTLIN_NATIVE_HOME = ""

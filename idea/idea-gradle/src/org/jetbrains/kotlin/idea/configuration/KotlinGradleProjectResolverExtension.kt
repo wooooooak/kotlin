@@ -62,6 +62,7 @@ var DataNode<ModuleData>.kotlinNativeHome
         by CopyableDataNodeUserDataProperty(Key.create<String>("KOTLIN_NATIVE_HOME"))
 var DataNode<out ModuleData>.implementedModuleNames
         by NotNullableCopyableDataNodeUserDataProperty(Key.create<List<String>>("IMPLEMENTED_MODULE_NAME"), emptyList())
+
 // Project is usually the same during all import, thus keeping Map Project->Dependencies makes model a bit more complicated but allows to avoid future problems
 var DataNode<out ModuleData>.dependenciesCache
         by DataNodeUserDataProperty(
@@ -69,8 +70,8 @@ var DataNode<out ModuleData>.dependenciesCache
         )
 var DataNode<out ModuleData>.pureKotlinSourceFolders
         by NotNullableCopyableDataNodeUserDataProperty(Key.create<List<String>>("PURE_KOTLIN_SOURCE_FOLDER"), emptyList())
-var DataNode<out ModuleData>.compilerArgumentsMapper
-        by CopyableDataNodeUserDataProperty(Key.create<CompilerArgumentsDataMapper>("COMPILER_ARGUMENTS_MAPPER"))
+var DataNode<ProjectData>.argumentCachesContainer
+        by NotNullableCopyableDataNodeUserDataProperty(Key.create("ARGUMENT_CACHES_CONTAINER"), ArgumentCachesContainer())
 
 
 class KotlinGradleProjectResolverExtension : AbstractProjectResolverExtension() {
@@ -234,7 +235,8 @@ class KotlinGradleProjectResolverExtension : AbstractProjectResolverExtension() 
         ideModule.compilerArgumentsBySourceSet = gradleModel.compilerArgumentsBySourceSet.deepCopy()
         ideModule.coroutines = gradleModel.coroutines
         ideModule.platformPluginId = gradleModel.platformPluginId
-        ideModule.compilerArgumentsMapper = gradleModel.compilerArgumentsMapper
+
+        ideProject.argumentCachesContainer.mergeArgumentsContainer(gradleModel.argumentCachesContainer)
 
         if (gradleModel.hasKotlinPlugin) {
             KotlinFUSLogger.log(FUSEventGroups.GradleTarget, gradleModel.kotlinTarget ?: "unknown")
@@ -313,7 +315,7 @@ class KotlinGradleProjectResolverExtension : AbstractProjectResolverExtension() 
                     gradleModel.kotlinTaskProperties.filter { (k, v) -> gradleSourceSetNode.data.id == "$moduleNamePrefix:$k" }
                         .toList().singleOrNull()
                 gradleSourceSetNode.children.forEach { dataNode ->
-                    val data = dataNode.data as?  ContentRootData
+                    val data = dataNode.data as? ContentRootData
                     if (data != null) {
                         /*
                         Code snippet for setting in content root properties

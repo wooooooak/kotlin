@@ -65,9 +65,9 @@ data class KotlinLanguageSettingsImpl(
     override val isProgressiveMode: Boolean,
     override val enabledLanguageFeatures: Set<String>,
     override val experimentalAnnotationsInUse: Set<String>,
-    override val compilerPluginArguments: Array<String>,
-    override val compilerPluginClasspath: Set<File>,
-    override val freeCompilerArgs: Array<String>
+    override val compilerPluginArguments: Array<CompilerArgumentCacheIdType>,
+    override val compilerPluginClasspath: Array<ClasspathArgumentCacheIdType>,
+    override val freeCompilerArgs: Array<CompilerArgumentCacheIdType>
 ) : KotlinLanguageSettings {
     constructor(settings: KotlinLanguageSettings) : this(
         settings.languageVersion,
@@ -94,8 +94,8 @@ data class KotlinCompilationOutputImpl(
 }
 
 data class KotlinCompilationArgumentsImpl(
-    override val defaultArguments: Array<Long>,
-    override val currentArguments: Array<Long>
+    override val defaultArguments: Array<CompilerArgumentCacheIdType>,
+    override val currentArguments: Array<CompilerArgumentCacheIdType>
 ) : KotlinCompilationArguments {
     constructor(arguments: KotlinCompilationArguments) : this(
         arguments.defaultArguments.copyOf(),
@@ -115,7 +115,7 @@ data class KotlinCompilationImpl(
     override val dependencies: Array<KotlinDependencyId>,
     override val output: KotlinCompilationOutput,
     override val arguments: KotlinCompilationArguments,
-    override val dependencyClasspath: Array<String>,
+    override val dependencyClasspath: Array<ClasspathArgumentCacheIdType>,
     override val kotlinTaskProperties: KotlinTaskProperties,
     override val nativeExtensions: KotlinNativeCompilationExtensions?
 ) : KotlinCompilation {
@@ -228,7 +228,7 @@ data class KotlinMPPGradleModelImpl(
     override val extraFeatures: ExtraFeatures,
     override val kotlinNativeHome: String,
     override val dependencyMap: Map<KotlinDependencyId, KotlinDependency>,
-    override val dataMapper: CompilerArgumentsDataMapper
+    override val argumentCachesContainer: ArgumentCachesContainer
 ) : KotlinMPPGradleModel {
 
     constructor(mppModel: KotlinMPPGradleModel, cloningCache: MutableMap<Any, Any>) : this(
@@ -250,7 +250,7 @@ data class KotlinMPPGradleModelImpl(
         ),
         mppModel.kotlinNativeHome,
         mppModel.dependencyMap.map { it.key to it.value.deepCopy(cloningCache) }.toMap(),
-        mppModel.dataMapper.deepCopy()
+        mppModel.argumentCachesContainer
     )
 }
 

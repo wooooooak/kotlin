@@ -32,16 +32,12 @@ import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.util.Key
-import com.intellij.util.PathUtil
 import org.jetbrains.kotlin.cli.common.arguments.K2JSCompilerArguments
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.arguments.parseCommandLineArguments
 import org.jetbrains.kotlin.config.*
 import org.jetbrains.kotlin.extensions.ProjectExtensionDescriptor
-import org.jetbrains.kotlin.gradle.ArgsInfo
-import org.jetbrains.kotlin.gradle.CompilerArgumentsBySourceSet
-import org.jetbrains.kotlin.gradle.CompilerArgumentsDataMapper
-import org.jetbrains.kotlin.gradle.mapperIdsToValues
+import org.jetbrains.kotlin.gradle.*
 import org.jetbrains.kotlin.ide.konan.NativeLibraryKind
 import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCommonCompilerArgumentsHolder
 import org.jetbrains.kotlin.idea.configuration.GradlePropertiesFileFacade.Companion.KOTLIN_CODE_STYLE_GRADLE_SETTING
@@ -175,6 +171,7 @@ class KotlinGradleLibraryDataService : AbstractProjectDataService<LibraryData, V
     ) {
         if (toImport.isEmpty()) return
         val projectDataNode = toImport.first().parent!!
+
         @Suppress("UNCHECKED_CAST")
         val moduleDataNodes = projectDataNode.children.filter { it.data is ModuleData } as List<DataNode<ModuleData>>
         val anyNonJvmModules = moduleDataNodes
@@ -292,16 +289,17 @@ fun configureFacetByGradleModule(
         ideModule.sourceSetName = sourceSetName
     }
     ideModule.hasExternalSdkConfiguration = sourceSetNode?.data?.sdkName != null
+    val projectDataNode = moduleNode.getDataNode(ProjectKeys.PROJECT)!!
 
     val argsInfo = moduleNode.compilerArgumentsBySourceSet?.get(sourceSetName ?: "main")
     if (argsInfo != null) {
-        configureFacetByCompilerArguments(kotlinFacet, argsInfo, modelsProvider, moduleNode.compilerArgumentsMapper)
+        configureFacetByCompilerArguments(kotlinFacet, argsInfo, modelsProvider, projectDataNode.argumentCachesContainer)
     }
 
     with(kotlinFacet.configuration.settings) {
         implementedModuleNames = (sourceSetNode ?: moduleNode).implementedModuleNames
-        productionOutputPath = getExplicitOutputPath(moduleNode, platformKind, "main")
-        testOutputPath = getExplicitOutputPath(moduleNode, platformKind, "test")
+        productionOutputPath = getExplicitOutputPath(moduleNode, platformKind, "main", projectDataNode)
+        testOutputPath = getExplicitOutputPath(moduleNode, platformKind, "test", projectDataNode)
     }
 
     kotlinFacet.noVersionAutoAdvance()
@@ -313,22 +311,38 @@ fun configureFacetByGradleModule(
     return kotlinFacet
 }
 
-fun configureFacetByCompilerArguments(kotlinFacet: KotlinFacet, argsInfo: ArgsInfo, modelsProvider: IdeModifiableModelsProvider?, dataMapper: CompilerArgumentsDataMapper) {
-    val currentCompilerArguments = argsInfo.currentArguments.mapperIdsToValues(dataMapper)
-    val defaultCompilerArguments = argsInfo.defaultArguments.mapperIdsToValues(dataMapper)
-    val dependencyClasspath = argsInfo.dependencyClasspath.mapperIdsToValues(dataMapper).map { PathUtil.toSystemIndependentName(it) }
+fun configureFacetByCompilerArguments(
+    kotlinFacet: KotlinFacet,
+    argsInfo: ArgsInfo,
+    modelsProvider: IdeModifiableModelsProvider?,
+    argumentCachesContainer: ArgumentCachesContainer
+) {
+    val compilerArgumentsCache = argumentCachesContainer.compilerArgumentsCache
+    val classpathArgumentsCache = argumentCachesContainer.classpathArgumentsCache
+    val currentCompilerArguments = compilerArgumentsCache.selectCompilerArguments(argsInfo.currentArgumentsCacheIds)
+    val defaultCompilerArguments = compilerArgumentsCache.selectCompilerArguments(argsInfo.defaultArgumentsCacheIds)
+    val dependencyClasspath =
+        classpathArgumentsCache.selectCompilerArguments(argsInfo.dependencyClasspathCacheIds)
     if (currentCompilerArguments.isNotEmpty()) {
         parseCompilerArgumentsToFacet(currentCompilerArguments, defaultCompilerArguments, kotlinFacet, modelsProvider)
     }
     adjustClasspath(kotlinFacet, dependencyClasspath)
 }
 
-private fun getExplicitOutputPath(moduleNode: DataNode<ModuleData>, platformKind: IdePlatformKind<*>?, sourceSet: String): String? {
+private fun getExplicitOutputPath(
+    moduleNode: DataNode<ModuleData>,
+    platformKind: IdePlatformKind<*>?,
+    sourceSet: String,
+    projectDataNode: DataNode<ProjectData>
+): String? {
     if (!platformKind.isJavaScript) {
         return null
     }
 
-    val k2jsArgumentList = moduleNode.compilerArgumentsBySourceSet?.get(sourceSet)?.currentArguments?.mapperIdsToValues(moduleNode.compilerArgumentsMapper) ?: return null
+    val k2jsArgumentList =
+        moduleNode.compilerArgumentsBySourceSet?.get(sourceSet)?.currentArgumentsCacheIds?.let {
+            projectDataNode.argumentCachesContainer.compilerArgumentsCache.selectCompilerArguments(it)
+        } ?: return null
     return K2JSCompilerArguments().apply { parseCommandLineArguments(k2jsArgumentList, this) }.outputFile
 }
 

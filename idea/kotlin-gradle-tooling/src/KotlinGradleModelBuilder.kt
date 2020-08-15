@@ -15,23 +15,24 @@ import java.io.File
 import java.io.Serializable
 import java.lang.reflect.InvocationTargetException
 import java.util.*
+import kotlin.collections.ArrayList
 
 interface ArgsInfo : Serializable {
-    val currentArguments: List<Long>
-    val defaultArguments: List<Long>
-    val dependencyClasspath: List<Long>
+    val currentArgumentsCacheIds: List<CompilerArgumentCacheIdType>
+    val defaultArgumentsCacheIds: List<CompilerArgumentCacheIdType>
+    val dependencyClasspathCacheIds: List<ClasspathArgumentCacheIdType>
 }
 
 data class ArgsInfoImpl(
-    override val currentArguments: List<Long>,
-    override val defaultArguments: List<Long>,
-    override val dependencyClasspath: List<Long>
+    override val currentArgumentsCacheIds: List<CompilerArgumentCacheIdType>,
+    override val defaultArgumentsCacheIds: List<CompilerArgumentCacheIdType>,
+    override val dependencyClasspathCacheIds: List<ClasspathArgumentCacheIdType>
 ) : ArgsInfo {
 
     constructor(argsInfo: ArgsInfo) : this(
-        ArrayList(argsInfo.currentArguments),
-        ArrayList(argsInfo.defaultArguments),
-        ArrayList(argsInfo.dependencyClasspath)
+        ArrayList(argsInfo.currentArgumentsCacheIds),
+        ArrayList(argsInfo.defaultArgumentsCacheIds),
+        ArrayList(argsInfo.dependencyClasspathCacheIds)
     )
 }
 
@@ -55,7 +56,7 @@ interface KotlinGradleModel : Serializable {
     val kotlinTarget: String?
     val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet
     val gradleUserHome: String
-    val compilerArgumentsMapper: CompilerArgumentsDataMapper
+    val argumentCachesContainer: ArgumentCachesContainer
 }
 
 data class KotlinGradleModelImpl(
@@ -67,7 +68,7 @@ data class KotlinGradleModelImpl(
     override val kotlinTarget: String? = null,
     override val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet,
     override val gradleUserHome: String,
-    override val compilerArgumentsMapper: CompilerArgumentsDataMapper
+    override val argumentCachesContainer: ArgumentCachesContainer
 ) : KotlinGradleModel
 
 abstract class AbstractKotlinGradleModelBuilder : ModelBuilderService {
@@ -165,7 +166,8 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
     }
 
     override fun buildAll(modelName: String?, project: Project): KotlinGradleModelImpl {
-        val dataMapper = CompilerArgumentsDataMapperImpl()
+        val compilerArgumentsCache = CompilerArgumentsCache()
+        val classpathArgumentsCache = ClasspathArgumentsCache()
         val kotlinPluginId = kotlinPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
         val platformPluginId = platformPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
 
@@ -181,9 +183,9 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
             val defaultArguments = compileTask.getCompilerArguments("getDefaultSerializedCompilerArguments").orEmpty()
             val dependencyClasspath = compileTask.getDependencyClasspath()
             compilerArgumentsBySourceSet[sourceSetName] = ArgsInfoImpl(
-                currentArguments.mapValuesToMapperIds(dataMapper),
-                defaultArguments.mapValuesToMapperIds(dataMapper),
-                dependencyClasspath.mapValuesToMapperIds(dataMapper)
+                compilerArgumentsCache.cacheAllArguments(currentArguments),
+                compilerArgumentsCache.cacheAllArguments(defaultArguments),
+                classpathArgumentsCache.cacheAllArguments(dependencyClasspath)
             )
             extraProperties.acknowledgeTask(compileTask, null)
         }
@@ -200,7 +202,7 @@ class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
             platform ?: kotlinPluginId,
             extraProperties,
             project.gradle.gradleUserHomeDir.absolutePath,
-            dataMapper
+            ArgumentCachesContainer(compilerArgumentsCache, classpathArgumentsCache)
         )
     }
 }
