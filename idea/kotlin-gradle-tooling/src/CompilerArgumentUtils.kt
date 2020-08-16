@@ -28,7 +28,6 @@ interface IArgumentsCache<K, T : ArgumentCacheId<K>> : Serializable {
     fun cacheAllArguments(compilerArguments: Iterable<String>): List<K> =
         compilerArguments.map { cacheArgument(it) }
 
-
     fun selectCompilerArguments(compilerArgumentIds: Iterable<K>): List<String> =
         compilerArgumentIds.map { selectArgument(it) }
 

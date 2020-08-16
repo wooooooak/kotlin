@@ -276,12 +276,13 @@ open class KotlinMPPGradleProjectResolver : AbstractProjectResolverExtensionComp
             val mainModuleData = mainModuleNode.data
             val mainModuleConfigPath = mainModuleData.linkedExternalProjectPath
             val mainModuleFileDirectoryPath = mainModuleData.moduleFileDirectoryPath
-            val projectNodeArgumentCachesContainer = projectDataNode.argumentCachesContainer
 
             val externalProject = resolverCtx.getExtraProject(gradleModule, ExternalProject::class.java)
             val mppModel = resolverCtx.getMppModel(gradleModule)
             if (mppModel == null || externalProject == null) return
             mainModuleNode.isMppDataInitialized = true
+            val projectNodeArgumentCachesContainer = projectDataNode.argumentCachesContainer
+            projectNodeArgumentCachesContainer.mergeArgumentsContainer(mppModel.argumentCachesContainer)
 
             val jdkName = gradleModule.jdkNameIfAny
 
