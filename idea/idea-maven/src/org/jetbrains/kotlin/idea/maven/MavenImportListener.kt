@@ -15,7 +15,6 @@ import org.jetbrains.kotlin.idea.configuration.KotlinMigrationProjectService
 import org.jetbrains.kotlin.idea.configuration.notifyOutdatedBundledCompilerIfNecessary
 import org.jetbrains.kotlin.idea.util.ProgressIndicatorUtils.runUnderDisposeAwareIndicator
 
-// FIX ME WHEN BUNCH 192 REMOVED
 class MavenImportListener : StartupActivity {
 
     override fun runActivity(project: Project) {
@@ -37,6 +36,4 @@ class MavenImportListener : StartupActivity {
             }
         })
     }
-
-
 }
