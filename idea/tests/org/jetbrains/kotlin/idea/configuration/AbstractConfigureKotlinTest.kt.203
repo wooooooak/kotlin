@@ -113,7 +113,7 @@ abstract class AbstractConfigureKotlinTest : PlatformTestCase() {
 
     override fun doCreateAndOpenProject(): Project {
         val projectFile = getProjectDirOrFile(isCreateDirectoryBasedProject)
-        return loadProjectCompat(projectFile)
+        return (ProjectManagerEx.getInstanceEx()).loadProject(projectFile)
     }
 
     private val projectName: String
